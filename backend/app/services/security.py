@@ -14,8 +14,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 ph = PasswordHasher()
 
 
-# ---------------- PASSWORD ---------------- #
-
 def hash_password(password: str) -> str:
     return ph.hash(password)
 
@@ -28,10 +26,7 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-# ---------------- TOKEN ---------------- #
-
 def create_access_token(user_id):
-    # 🚨 STRICT CHECK (this will catch your bug instantly)
     if isinstance(user_id, dict):
         raise ValueError("user_id should NOT be a dict. Pass user.id directly")
 
