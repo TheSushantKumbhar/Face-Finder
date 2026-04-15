@@ -4,9 +4,9 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.dependencies import get_db
-from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from dependencies.db_dependency import get_db
+from app.models.user import User,UserRole
+from app.schemas.user_schemas import UserCreate, UserLogin, UserResponse
 from app.services.security import (
     hash_password,
     verify_password,
@@ -29,7 +29,8 @@ async def signup(user : UserCreate, db: AsyncSession = Depends(get_db)):
     new_user = User(
         username = user.username,
         email = user.email,
-        password = hash_password(user.password)
+        password = hash_password(user.password),
+        role = user.role
     )
 
     db.add(new_user)
@@ -40,21 +41,21 @@ async def signup(user : UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login")
-async def login(user : UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == user.email))
-    exsisting_user = result.scalar_one_or_none
+    exsisting_user = result.scalar_one_or_none()
 
     if not exsisting_user:
-        raise HTTPException(status_code=400,detail="Invalid credentials")
+        raise HTTPException(status_code=400, detail="Invalid credentials")
     
-    if not verify_password(user.password,exsisting_user.password):
+    if not verify_password(user.password, exsisting_user.password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
-    token = create_access_token({"sub":str(exsisting_user.id)})
+    token = create_access_token(exsisting_user.id)
 
     return { 
-        "access_token" : token,
-        "token_type" : "bearer"
+        "access_token": token,
+        "token_type": "bearer"
     }
 
 

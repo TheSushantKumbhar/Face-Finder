@@ -3,35 +3,52 @@ from argon2.exceptions import VerifyMismatchError
 
 import jwt
 from jwt import PyJWTError
-from datetime import datetime, timedelta
 
-SECRET_KEY = "lmao"
+from datetime import datetime, timedelta
+from fastapi import HTTPException, status
+
+SECRET_KEY = "this_is_a_super_secure_key_with_more_than_32_chars"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 ph = PasswordHasher()
 
+
+# ---------------- PASSWORD ---------------- #
+
 def hash_password(password: str) -> str:
     return ph.hash(password)
 
-def verify_password(plain: str, hashed:str) -> bool:
+
+def verify_password(plain: str, hashed: str) -> bool:
     try:
         ph.verify(hashed, plain)
         return True
     except VerifyMismatchError:
         return False
-    
-def create_access_token(data: dict):
-    to_encode = data.copy()
+
+
+# ---------------- TOKEN ---------------- #
+
+def create_access_token(user_id):
+    # 🚨 STRICT CHECK (this will catch your bug instantly)
+    if isinstance(user_id, dict):
+        raise ValueError("user_id should NOT be a dict. Pass user.id directly")
+
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    payload = {
+        "sub": str(user_id),
+        "exp": expire
+    }
+
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except PyJWTError:
+    except PyJWTError as e:
+        print("JWT ERROR:", str(e))
         return None

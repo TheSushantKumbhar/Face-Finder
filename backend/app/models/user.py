@@ -1,9 +1,10 @@
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, DateTime, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
 import enum
+
 
 from app.db.base import Base
 
@@ -44,6 +45,11 @@ class User(Base):
         nullable=False
     )
 
+    selfie_url: Mapped[str] = mapped_column(   
+        String,
+        nullable=True  
+    )
+
     is_active : Mapped[bool] = mapped_column(
         Boolean,
         default=True
@@ -53,3 +59,5 @@ class User(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    events = relationship("Event", back_populates="creator")

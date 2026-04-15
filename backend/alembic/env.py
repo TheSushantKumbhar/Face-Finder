@@ -9,7 +9,7 @@ from alembic import context
 
 import os
 from dotenv import load_dotenv
-from app.models.user import User
+from app.models import *
 
 # ✅ Load environment variables
 load_dotenv()
@@ -29,7 +29,6 @@ if config.config_file_name is not None:
 
 # ✅ Import your Base and models
 from app.db.base import Base
-from app.models.user import User  # 👈 IMPORTANT (add more models here later)
 
 # Target metadata for autogenerate
 target_metadata = Base.metadata
@@ -61,6 +60,8 @@ def do_run_migrations(connection: Connection):
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
+        compare_type=True,
+        compare_server_default=True,
     )
 
     with context.begin_transaction():
