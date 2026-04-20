@@ -4,8 +4,17 @@ from app.api.event_routes import events_routes
 from app.api.photo_routes import photo_routes
 from app.api.auth.oauth import router as oauth_router  
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Face Finder API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(
     SessionMiddleware,
