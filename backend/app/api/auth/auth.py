@@ -62,3 +62,7 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout():
     return {"message": "Logout successful"}
+
+
+
+
