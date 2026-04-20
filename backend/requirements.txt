@@ -15,3 +15,4 @@ boto3
 botocore
 python-jose
 passlib[argon2]
+pydantic[email]
