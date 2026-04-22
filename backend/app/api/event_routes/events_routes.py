@@ -38,7 +38,7 @@ async def create_event(
     return new_event
 
 # get all events (normal user)
-@router.get("/  ",response_model=list[EventResponse])
+@router.get("/", response_model=list[EventResponse])
 async def get_events(
     db : AsyncSession = Depends(get_db),
     current_user : User = Depends(get_current_user)
@@ -99,3 +99,27 @@ async def delete_event(
     return {
         "message" : "Event deleted successfully"
     }
+
+# get event photos
+from app.models.photo import Photo
+@router.get("/{event_id}/photos")
+async def get_event_photos(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Verify user has access or is organizer. For now just fetch.
+    result = await db.execute(select(Photo).where(Photo.event_id == event_id))
+    photos = result.scalars().all()
+    
+    return [
+        {
+            "id": str(photo.id),
+            "event_id": str(photo.event_id),
+            "image_url": photo.image_url,
+            "status": photo.status.value if hasattr(photo.status, 'value') else photo.status,
+            "uploaded_by": str(photo.uploaded_by),
+            "created_at": photo.uploaded_at.isoformat() if photo.uploaded_at else None
+        }
+        for photo in photos
+    ]
