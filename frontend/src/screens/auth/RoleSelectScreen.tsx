@@ -149,7 +149,7 @@ export default function RoleSelectScreen({ route }: Props) {
     try {
       const data = await selectRoleApi(userId, selectedRole);
       await saveToken(data.access_token);
-      login(data.username || username);
+      login(data.username || username, data.role || 'user');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Something went wrong';
       Alert.alert('Error', message);

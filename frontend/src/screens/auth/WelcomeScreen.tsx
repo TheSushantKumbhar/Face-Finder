@@ -205,7 +205,7 @@ export default function WelcomeScreen({ navigation }: WelcomeScreenProps) {
         } else if (params.access_token) {
           // Existing user — save token and log in
           await saveToken(params.access_token as string);
-          login(params.username as string || 'User');
+          login(params.username as string || 'User', params.role as string || 'user');
         }
       }
     } catch (error: unknown) {

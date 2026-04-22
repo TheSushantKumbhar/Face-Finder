@@ -49,11 +49,17 @@ export const palette = {
   warning: '#F0AD4E',
   info: '#5BC0DE',
 
+  // ── Gold accent (navbar / indicators) ──────────────────
+  gold: '#C9A84C',              // Rich gold — active icons & labels
+  goldLight: '#E2C878',         // Lighter gold — glow / highlights
+  goldMuted: 'rgba(201,168,76,0.12)', // Subtle gold tint — icon bg pill
+  goldGlow: 'rgba(201,168,76,0.25)', // Glow ring for active tab
+
   // ── Dark mode surfaces ────────────────────────────────
   dark: {
-    bg: '#1A1714',
-    surface: '#2A2520',
-    surfaceLight: '#3A342E',
-    elevated: '#4A433B',
+    bg: '#0A0A0A',              // True dark background
+    surface: '#141414',         // Card / navbar surface
+    surfaceLight: '#1E1E1E',    // Elevated surface
+    elevated: '#282828',        // Highest elevation
   },
 };

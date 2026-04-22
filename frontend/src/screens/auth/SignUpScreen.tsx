@@ -1,7 +1,8 @@
 /**
  * Face Finder — Sign Up Screen
  * ─────────────────────────────
- * Warm peach themed sign up with role selection, animated cards, and glassmorphic styling.
+ * Premium dark B&W sign up — matches the app aesthetic.
+ * Compact role pills, illustration, and Continue with Google.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -18,11 +19,14 @@ import {
   Animated,
   Alert,
   Dimensions,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { signUpApi } from '../../services/api';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { useAuth } from '../../context/AuthContext';
+import { signUpApi, BASE_URL, saveToken } from '../../services/api';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 
@@ -32,11 +36,31 @@ type SignUpScreenProps = {
 
 type Role = 'user' | 'organizer';
 
-const { width } = Dimensions.get('window');
+/* ── local B&W palette ───────────────────────────────────── */
+const bw = {
+  black: '#000000',
+  surface: '#0A0A0A',
+  card: '#0E0E0E',
+  border: '#1A1A1A',
+  borderLight: '#222222',
+  inputBg: '#111111',
+  inputBorder: '#1E1E1E',
+  inputFocusBorder: '#444444',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#999999',
+  textMuted: '#505050',
+  accent: '#FFFFFF',
+  placeholder: '#3A3A3A',
+};
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const ILLUSTRATION_SIZE = SCREEN_W * 0.65;
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+// const signupIllustration = require('../../../assets/signup-illustration.png');
 
 export default function SignUpScreen({ navigation }: SignUpScreenProps) {
-  const { theme, isDark, toggleTheme } = useTheme();
-  const { colors, spacing, borderRadius, fontSize } = theme;
+  const { login } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -47,63 +71,71 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Focus states
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmFocused, setConfirmFocused] = useState(false);
 
-  // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  /* ── animations ──────────────────────────── */
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerSlide = useRef(new Animated.Value(20)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide = useRef(new Animated.Value(25)).current;
+  const btnOpacity = useRef(new Animated.Value(0)).current;
+  const btnSlide = useRef(new Animated.Value(20)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
-  const userCardScale = useRef(new Animated.Value(1)).current;
-  const organizerCardScale = useRef(new Animated.Value(1)).current;
+  const googleBtnScale = useRef(new Animated.Value(1)).current;
+  const userPillScale = useRef(new Animated.Value(1)).current;
+  const orgPillScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 700,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        friction: 8,
-        tension: 50,
-        useNativeDriver: true,
-      }),
+    Animated.stagger(140, [
+      Animated.parallel([
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+        Animated.spring(headerSlide, {
+          toValue: 0,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(formOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(formSlide, {
+          toValue: 0,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(btnOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(btnSlide, {
+          toValue: 0,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start();
   }, []);
 
-  const animateButtonPress = () => {
+  const handleRoleSelect = (r: Role) => {
+    const anim = r === 'user' ? userPillScale : orgPillScale;
     Animated.sequence([
-      Animated.timing(buttonScale, {
-        toValue: 0.96,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(buttonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
+      Animated.timing(anim, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+      Animated.spring(anim, { toValue: 1, friction: 5, useNativeDriver: true }),
     ]).start();
-  };
-
-  const animateCardPress = (anim: Animated.Value) => {
-    Animated.sequence([
-      Animated.spring(anim, {
-        toValue: 0.95,
-        useNativeDriver: true,
-        friction: 5,
-      }),
-      Animated.spring(anim, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 5,
-      }),
-    ]).start();
+    setRole(r);
   };
 
   const handleSignUp = async () => {
@@ -111,112 +143,76 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
       return;
     }
-
     if (password !== confirmPassword) {
       Alert.alert('Password Mismatch', 'Passwords do not match.');
       return;
     }
-
     if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters long.');
+      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
       return;
     }
 
-    animateButtonPress();
-    setLoading(true);
+    Animated.sequence([
+      Animated.timing(buttonScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
 
+    setLoading(true);
     try {
       await signUpApi(username.trim(), email.trim(), password, role);
       Alert.alert('Account Created!', 'You can now sign in with your credentials.', [
         { text: 'Sign In', onPress: () => navigation.navigate('Login') },
       ]);
-    } catch (error: any) {
-      Alert.alert('Sign Up Failed', error.message || 'Something went wrong.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Something went wrong.';
+      Alert.alert('Sign Up Failed', message);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderInput = (
-    icon: keyof typeof Ionicons.glyphMap,
-    placeholder: string,
-    value: string,
-    onChangeText: (t: string) => void,
-    focused: boolean,
-    setFocused: (f: boolean) => void,
-    options?: {
-      secure?: boolean;
-      showToggle?: boolean;
-      showValue?: boolean;
-      onToggle?: () => void;
-      keyboardType?: 'default' | 'email-address';
-      autoCapitalize?: 'none' | 'sentences' | 'words';
+  const handleGoogleSignIn = async () => {
+    Animated.sequence([
+      Animated.timing(googleBtnScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+      Animated.timing(googleBtnScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+
+    try {
+      const redirectUrl = Linking.createURL('oauth');
+      const googleAuthUrl = `${BASE_URL}/auth/google?app_redirect_uri=${encodeURIComponent(redirectUrl)}`;
+      const result = await WebBrowser.openAuthSessionAsync(googleAuthUrl, redirectUrl);
+
+      if (result.type === 'success' && result.url) {
+        const url = Linking.parse(result.url);
+        const params = url.queryParams || {};
+
+        if (params.is_new_user === 'true') {
+          navigation.navigate('RoleSelect', {
+            userId: params.user_id as string,
+            username: params.username as string,
+          });
+        } else if (params.access_token) {
+          await saveToken(params.access_token as string);
+          login(params.username as string || 'User', params.role as string || 'user');
+        }
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Something went wrong';
+      Alert.alert('Sign In Failed', message);
     }
-  ) => (
-    <View
-      style={[
-        styles.inputWrapper,
-        {
-          backgroundColor: 'rgba(255,255,255,0.5)',
-          borderColor: focused ? colors.primary : 'rgba(0,0,0,0.08)',
-        },
-      ]}
-    >
-      <Ionicons
-        name={icon}
-        size={20}
-        color={focused ? colors.primary : colors.iconMuted}
-        style={styles.inputIcon}
-      />
-      <TextInput
-        style={[styles.input, { color: colors.inputText, fontSize: fontSize.md }]}
-        placeholder={placeholder}
-        placeholderTextColor={colors.placeholder}
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        secureTextEntry={options?.secure && !options?.showValue}
-        keyboardType={options?.keyboardType || 'default'}
-        autoCapitalize={options?.autoCapitalize || 'sentences'}
-        autoCorrect={false}
-      />
-      {options?.showToggle && (
-        <TouchableOpacity onPress={options.onToggle} style={styles.eyeButton}>
-          <Ionicons
-            name={options.showValue ? 'eye-off-outline' : 'eye-outline'}
-            size={20}
-            color={colors.iconMuted}
-          />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-      {/* Back Button */}
+      {/* ── Back Button ── */}
       <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: 'rgba(0,0,0,0.08)' }]}
+        style={styles.backButton}
         onPress={() => navigation.goBack()}
         activeOpacity={0.7}
       >
-        <Ionicons name="arrow-back" size={22} color={colors.text} />
-      </TouchableOpacity>
-
-      {/* Theme Toggle */}
-      <TouchableOpacity
-        style={[styles.themeToggle, { backgroundColor: 'rgba(0,0,0,0.08)' }]}
-        onPress={toggleTheme}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name={isDark ? 'sunny' : 'moon'}
-          size={20}
-          color={colors.text}
-        />
+        <Ionicons name="arrow-back" size={22} color={bw.textPrimary} />
       </TouchableOpacity>
 
       <KeyboardAvoidingView
@@ -228,432 +224,491 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
+          {/* ── Illustration + Header ── */}
           <Animated.View
             style={[
-              styles.headerSection,
+              styles.headerArea,
               {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
+                opacity: headerOpacity,
+                transform: [{ translateY: headerSlide }],
               },
             ]}
           >
-            <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
-              <Ionicons name="person-add" size={30} color={colors.textOnPrimary} />
-            </View>
-
-            <Text style={[styles.title, { color: colors.text, fontSize: fontSize.xxl }]}>
-              Create Account
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary, fontSize: fontSize.md }]}>
-              Join Face Finder today
-            </Text>
+            <Image
+              // source={signupIllustration}
+              // style={styles.illustration}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join Face Finder today</Text>
           </Animated.View>
 
-          {/* Form Card */}
+          {/* ── Form ── */}
           <Animated.View
             style={[
-              styles.formCard,
+              styles.formArea,
               {
-                backgroundColor: 'rgba(255,255,255,0.35)',
-                borderColor: 'rgba(255,255,255,0.5)',
-                shadowColor: colors.shadow,
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
+                opacity: formOpacity,
+                transform: [{ translateY: formSlide }],
               },
             ]}
           >
-            {/* Role Selector */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
-              I AM A
-            </Text>
-
-            <View style={styles.roleRow}>
-              {/* User Card */}
-              <Animated.View style={[styles.roleCardWrapper, { transform: [{ scale: userCardScale }] }]}>
+            {/* Role Pills */}
+            <Text style={styles.roleLabel}>I AM A</Text>
+            <View style={styles.rolePillRow}>
+              <Animated.View style={{ flex: 1, transform: [{ scale: userPillScale }] }}>
                 <TouchableOpacity
+                  style={[
+                    styles.rolePill,
+                    role === 'user' && styles.rolePillSelected,
+                  ]}
+                  onPress={() => handleRoleSelect('user')}
                   activeOpacity={0.8}
-                  onPress={() => {
-                    setRole('user');
-                    animateCardPress(userCardScale);
-                  }}
                 >
-                  <View
+                  <Ionicons
+                    name="person"
+                    size={16}
+                    color={role === 'user' ? bw.black : bw.textSecondary}
+                  />
+                  <Text
                     style={[
-                      styles.roleCard,
-                      {
-                        backgroundColor: role === 'user' ? colors.primary : 'rgba(255,255,255,0.5)',
-                        borderColor: role === 'user' ? colors.primary : 'rgba(0,0,0,0.08)',
-                      },
+                      styles.rolePillText,
+                      role === 'user' && styles.rolePillTextSelected,
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.roleIconBg,
-                        {
-                          backgroundColor: role === 'user'
-                            ? 'rgba(255,255,255,0.2)'
-                            : 'rgba(0,0,0,0.06)',
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="person"
-                        size={24}
-                        color={role === 'user' ? colors.textOnPrimary : colors.primary}
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.roleTitle,
-                        {
-                          color: role === 'user' ? colors.textOnPrimary : colors.text,
-                          fontSize: fontSize.lg,
-                        },
-                      ]}
-                    >
-                      User
-                    </Text>
-                    <Text
-                      style={[
-                        styles.roleDesc,
-                        {
-                          color: role === 'user'
-                            ? 'rgba(255,255,255,0.75)'
-                            : colors.textMuted,
-                          fontSize: fontSize.xs,
-                        },
-                      ]}
-                    >
-                      Find my photos
-                    </Text>
-                  </View>
+                    User
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
 
-              {/* Organizer Card */}
-              <Animated.View style={[styles.roleCardWrapper, { transform: [{ scale: organizerCardScale }] }]}>
+              <Animated.View style={{ flex: 1, transform: [{ scale: orgPillScale }] }}>
                 <TouchableOpacity
+                  style={[
+                    styles.rolePill,
+                    role === 'organizer' && styles.rolePillSelected,
+                  ]}
+                  onPress={() => handleRoleSelect('organizer')}
                   activeOpacity={0.8}
-                  onPress={() => {
-                    setRole('organizer');
-                    animateCardPress(organizerCardScale);
-                  }}
                 >
-                  <View
+                  <Ionicons
+                    name="calendar"
+                    size={16}
+                    color={role === 'organizer' ? bw.black : bw.textSecondary}
+                  />
+                  <Text
                     style={[
-                      styles.roleCard,
-                      {
-                        backgroundColor: role === 'organizer' ? colors.secondary : 'rgba(255,255,255,0.5)',
-                        borderColor: role === 'organizer' ? colors.secondary : 'rgba(0,0,0,0.08)',
-                      },
+                      styles.rolePillText,
+                      role === 'organizer' && styles.rolePillTextSelected,
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.roleIconBg,
-                        {
-                          backgroundColor: role === 'organizer'
-                            ? 'rgba(255,255,255,0.2)'
-                            : 'rgba(0,0,0,0.06)',
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="calendar"
-                        size={24}
-                        color={role === 'organizer' ? colors.textOnPrimary : colors.secondary}
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.roleTitle,
-                        {
-                          color: role === 'organizer' ? colors.textOnPrimary : colors.text,
-                          fontSize: fontSize.lg,
-                        },
-                      ]}
-                    >
-                      Organizer
-                    </Text>
-                    <Text
-                      style={[
-                        styles.roleDesc,
-                        {
-                          color: role === 'organizer'
-                            ? 'rgba(255,255,255,0.75)'
-                            : colors.textMuted,
-                          fontSize: fontSize.xs,
-                        },
-                      ]}
-                    >
-                      Host events
-                    </Text>
-                  </View>
+                    Organizer
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
 
-            {/* Divider */}
-            <View style={[styles.divider, { backgroundColor: 'rgba(0,0,0,0.08)' }]} />
+            {/* Username */}
+            <View style={[styles.inputWrapper, usernameFocused && styles.inputWrapperFocused]}>
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={usernameFocused ? bw.textSecondary : bw.textMuted}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Username"
+                placeholderTextColor={bw.placeholder}
+                value={username}
+                onChangeText={setUsername}
+                onFocus={() => setUsernameFocused(true)}
+                onBlur={() => setUsernameFocused(false)}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
 
-            {/* Inputs */}
-            {renderInput('person-outline', 'Username', username, setUsername, usernameFocused, setUsernameFocused, {
-              autoCapitalize: 'none',
-            })}
+            {/* Email */}
+            <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={emailFocused ? bw.textSecondary : bw.textMuted}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Email address"
+                placeholderTextColor={bw.placeholder}
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
 
-            {renderInput('mail-outline', 'Email address', email, setEmail, emailFocused, setEmailFocused, {
-              keyboardType: 'email-address',
-              autoCapitalize: 'none',
-            })}
-
-            {renderInput(
-              'lock-closed-outline',
-              'Password',
-              password,
-              setPassword,
-              passwordFocused,
-              setPasswordFocused,
-              {
-                secure: true,
-                showToggle: true,
-                showValue: showPassword,
-                onToggle: () => setShowPassword(!showPassword),
-              }
-            )}
-
-            {renderInput(
-              'shield-checkmark-outline',
-              'Confirm Password',
-              confirmPassword,
-              setConfirmPassword,
-              confirmFocused,
-              setConfirmFocused,
-              {
-                secure: true,
-                showToggle: true,
-                showValue: showConfirmPassword,
-                onToggle: () => setShowConfirmPassword(!showConfirmPassword),
-              }
-            )}
-
-            {/* Sign Up Button */}
-            <Animated.View style={[styles.buttonContainer, { transform: [{ scale: buttonScale }] }]}>
+            {/* Password */}
+            <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={passwordFocused ? bw.textSecondary : bw.textMuted}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor={bw.placeholder}
+                value={password}
+                onChangeText={setPassword}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                secureTextEntry={!showPassword}
+              />
               <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={bw.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Confirm Password */}
+            <View style={[styles.inputWrapper, confirmFocused && styles.inputWrapperFocused]}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={18}
+                color={confirmFocused ? bw.textSecondary : bw.textMuted}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                placeholderTextColor={bw.placeholder}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                onFocus={() => setConfirmFocused(true)}
+                onBlur={() => setConfirmFocused(false)}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={bw.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+
+          {/* ── Buttons ── */}
+          <Animated.View
+            style={[
+              styles.buttonArea,
+              {
+                opacity: btnOpacity,
+                transform: [{ translateY: btnSlide }],
+              },
+            ]}
+          >
+            {/* Create Account */}
+            <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <TouchableOpacity
+                style={styles.signUpBtn}
                 onPress={handleSignUp}
                 activeOpacity={0.85}
                 disabled={loading}
-                style={[
-                  styles.signUpButton,
-                  {
-                    backgroundColor: role === 'organizer' ? colors.secondary : colors.primary,
-                    borderRadius: borderRadius.lg,
-                  },
-                ]}
               >
                 {loading ? (
-                  <ActivityIndicator color={colors.textOnPrimary} size="small" />
+                  <ActivityIndicator size="small" color={bw.black} />
                 ) : (
-                  <View style={styles.buttonContent}>
-                    <Text
-                      style={[
-                        styles.signUpText,
-                        { color: colors.textOnPrimary, fontSize: fontSize.lg },
-                      ]}
-                    >
-                      Create Account
-                    </Text>
-                    <View style={[styles.arrowContainer, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                      <Ionicons name="arrow-forward" size={18} color={colors.textOnPrimary} />
+                  <View style={styles.signUpBtnInner}>
+                    <Ionicons
+                      name="person-add-outline"
+                      size={20}
+                      color={bw.black}
+                      style={{ marginRight: 10 }}
+                    />
+                    <Text style={styles.signUpBtnText}>Create Account</Text>
+                    <View style={{ flex: 1 }} />
+                    <View style={styles.arrowWrap}>
+                      <Ionicons name="arrow-forward" size={18} color={bw.black} />
                     </View>
                   </View>
                 )}
               </TouchableOpacity>
             </Animated.View>
-          </Animated.View>
 
-          {/* Sign In Link */}
-          <View style={styles.signInRow}>
-            <Text style={[styles.signInLabel, { color: colors.textMuted, fontSize: fontSize.md }]}>
-              Already have an account?{' '}
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={[styles.signInLink, { color: colors.text, fontSize: fontSize.md }]}>
-                Sign In
-              </Text>
-            </TouchableOpacity>
-          </View>
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Continue with Google */}
+            <Animated.View style={{ transform: [{ scale: googleBtnScale }] }}>
+              <TouchableOpacity
+                style={styles.googleBtn}
+                onPress={handleGoogleSignIn}
+                activeOpacity={0.8}
+              >
+                <View style={styles.googleIconWrap}>
+                  <Text style={styles.googleG}>G</Text>
+                </View>
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Sign In Link */}
+            <View style={styles.signInRow}>
+              <Text style={styles.signInLabel}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.signInLink}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
+/* ── Styles ──────────────────────────────────────────────── */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: bw.black,
   },
+
+  /* ── Back ── */
   backButton: {
     position: 'absolute',
-    top: 54,
+    top: Platform.OS === 'ios' ? 58 : 42,
     left: 20,
     zIndex: 10,
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: bw.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeToggle: {
-    position: 'absolute',
-    top: 54,
-    right: 20,
-    zIndex: 10,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 28,
-    paddingTop: 70,
+    paddingTop: Platform.OS === 'ios' ? 100 : 85,
     paddingBottom: 40,
   },
-  headerSection: {
+
+  /* ── Header ── */
+  headerArea: {
     alignItems: 'center',
     marginBottom: 24,
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+  illustration: {
+    width: ILLUSTRATION_SIZE,
+    height: ILLUSTRATION_SIZE,
+    tintColor: bw.accent,
+    marginBottom: 12,
   },
   title: {
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    color: bw.textPrimary,
+    letterSpacing: -0.8,
     marginBottom: 4,
   },
   subtitle: {
+    fontSize: 14,
+    color: bw.textSecondary,
     letterSpacing: 0.2,
-    opacity: 0.8,
   },
-  formCard: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    marginBottom: 28,
-    overflow: 'hidden',
-  },
-  sectionLabel: {
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginBottom: 12,
-  },
-  roleRow: {
-    flexDirection: 'row',
-    gap: 12,
+
+  /* ── Form ── */
+  formArea: {
     marginBottom: 20,
   },
-  roleCardWrapper: {
-    flex: 1,
-  },
-  roleCard: {
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    minHeight: 130,
-    justifyContent: 'center',
-  },
-  roleIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  /* ── Role Pills ── */
+  roleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: bw.textMuted,
+    letterSpacing: 1.5,
     marginBottom: 10,
   },
-  roleTitle: {
-    fontWeight: '700',
-    marginBottom: 2,
+  rolePillRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
   },
-  roleDesc: {
-    textAlign: 'center',
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: bw.borderLight,
+    backgroundColor: bw.card,
+    gap: 8,
   },
-  divider: {
-    height: 1,
-    marginBottom: 20,
+  rolePillSelected: {
+    backgroundColor: bw.accent,
+    borderColor: bw.accent,
   },
+  rolePillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: bw.textSecondary,
+  },
+  rolePillTextSelected: {
+    color: bw.black,
+  },
+
+  /* ── Inputs ── */
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: bw.inputBg,
     borderRadius: 14,
     borderWidth: 1.5,
-    paddingHorizontal: 14,
-    marginBottom: 14,
-    height: 54,
+    borderColor: bw.inputBorder,
+    paddingHorizontal: 16,
+    height: 50,
+    marginBottom: 10,
+  },
+  inputWrapperFocused: {
+    borderColor: bw.inputFocusBorder,
+    backgroundColor: '#141414',
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
     height: '100%',
+    fontSize: 15,
+    color: bw.textPrimary,
+    letterSpacing: 0.2,
   },
-  eyeButton: {
-    padding: 4,
+
+  /* ── Buttons ── */
+  buttonArea: {
+    gap: 14,
   },
-  buttonContainer: {
-    marginTop: 8,
-  },
-  signUpButton: {
-    height: 56,
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
+  signUpBtn: {
+    backgroundColor: bw.accent,
+    borderRadius: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    shadowColor: bw.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  buttonContent: {
+  signUpBtnInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 24,
-    paddingRight: 8,
   },
-  signUpText: {
+  signUpBtnText: {
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    color: bw.black,
+    letterSpacing: -0.2,
   },
-  arrowContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  arrowWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  /* ── Divider ── */
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: bw.borderLight,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: bw.textMuted,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
+  /* ── Google ── */
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 15,
+    borderWidth: 1,
+    borderColor: bw.borderLight,
+    backgroundColor: bw.surface,
+    gap: 12,
+  },
+  googleIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: bw.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleG: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: bw.black,
+  },
+  googleBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: bw.textPrimary,
+    letterSpacing: -0.2,
+  },
+
+  /* ── Sign In Link ── */
   signInRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 2,
   },
-  signInLabel: {},
+  signInLabel: {
+    fontSize: 13,
+    color: bw.textMuted,
+  },
   signInLink: {
+    fontSize: 13,
     fontWeight: '700',
+    color: bw.textPrimary,
     textDecorationLine: 'underline',
   },
 });

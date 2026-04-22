@@ -11,6 +11,35 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
+import EventUploadScreen from '../screens/main/EventUploadScreen';
+import EventGalleryScreen from '../screens/main/EventGalleryScreen';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+export type AppStackParamList = {
+  MainTabs: undefined;
+  EventUpload: { eventId: string; eventName: string };
+  EventGallery: { eventId: string; eventName: string };
+};
+
+const Stack = createNativeStackNavigator<AppStackParamList>();
+
+function AppStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={MainNavigator} />
+      <Stack.Screen 
+        name="EventUpload" 
+        component={EventUploadScreen} 
+        options={{ presentation: 'modal' }}
+      />
+      <Stack.Screen 
+        name="EventGallery" 
+        component={EventGalleryScreen} 
+        options={{ presentation: 'card' }}
+      />
+    </Stack.Navigator>
+  );
+}
 
 export default function RootNavigator() {
   const { theme, isDark } = useTheme();
@@ -32,7 +61,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      {isAuthenticated ? <AppStack /> : <AuthNavigator />}
     </NavigationContainer>
   );
 }
