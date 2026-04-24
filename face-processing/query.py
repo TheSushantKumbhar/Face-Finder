@@ -3,7 +3,7 @@ from services.embeddings import normalize_embedding
 from services.vector_store import init_index
 from config import TOP_K, THRESHOLD
 
-NAMESPACE = "test2"
+NAMESPACE = "test_3"
 
 
 def filter_matches(matches, threshold):

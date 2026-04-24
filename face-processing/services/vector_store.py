@@ -16,7 +16,15 @@ def init_index():
     return pc.Index(INDEX_NAME)
 
 
-def upsert_vectors(index, vectors, namespace="default", batch_size=50):
+def upsert_batch_vectors(index, vectors, namespace="default", batch_size=50):
     for i in range(0, len(vectors), batch_size):
         batch = vectors[i : i + batch_size]
         index.upsert(vectors=batch, namespace=namespace)
+
+
+def upsert_vector(index, vector, namespace):
+    upsert_batch_vectors(
+        index=index,
+        vectors=[vector],
+        namespace=namespace,
+    )
