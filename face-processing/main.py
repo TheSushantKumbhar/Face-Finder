@@ -1,3 +1,4 @@
+from config import NAMESPACE
 from services.pipeline import process_image
 from services.vector_store import init_index
 from utils.image_loader import load_images
@@ -5,7 +6,6 @@ from utils.image_loader import load_images
 
 def main():
     index = init_index()
-    namespace = "test_3"
     face_counter = 0
 
     for filename, path in load_images():
@@ -16,7 +16,7 @@ def main():
             path=path,
             filename=filename,
             face_counter=face_counter,
-            namespace=namespace,
+            namespace=NAMESPACE,
         )
 
     print(f"INFO indexed {face_counter} faces")

@@ -1,13 +1,13 @@
 from services.face_detection import extract_faces
 from services.embeddings import normalize_embedding
 from services.vector_store import init_index
-from config import TOP_K, THRESHOLD
-
-NAMESPACE = "test_3"
+from config import NAMESPACE, TOP_K, THRESHOLD
 
 
 def filter_matches(matches, threshold):
-    """Filter by score and deduplicate image paths."""
+    """
+    Filter by score and deduplicate image paths.
+    """
     seen = set()
     results = []
 
