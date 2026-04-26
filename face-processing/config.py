@@ -21,4 +21,4 @@ DIMENSION = int(get_env("DIMENSION"))
 THRESHOLD = 0.51
 TOP_K = 50
 
-NAMESPACE = "test_3"
+NAMESPACE = "test_4"
