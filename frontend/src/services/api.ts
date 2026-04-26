@@ -11,7 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 // export const BASE_URL = 'https://pcs-cabinets-carried-emission.trycloudflare.com'; // Android emulator → localhost
 // For physical device, use your machine's LAN IP, e.g. 'http://192.168.1.100:8000'
 
-const isDev = true;
+const isDev = false;
 
 export const BASE_URL = isDev
   ? 'http://192.168.1.10:8000'
@@ -69,7 +69,7 @@ export async function loginApi(
 
   // 2. Fetch user profile to get role and username
   const profile = await getMeApi();
-  
+
   return { ...data, username: profile.username, role: profile.role };
 }
 

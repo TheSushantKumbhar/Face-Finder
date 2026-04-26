@@ -60,6 +60,7 @@ export default function EventGalleryScreen() {
   // Selection mode
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loadedPhotos, setLoadedPhotos] = useState<Set<string>>(new Set());
 
   // Full-screen viewer
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -131,7 +132,7 @@ export default function EventGalleryScreen() {
 
   const renderPhoto = ({ item, index }: { item: PhotoResponse; index: number }) => {
     const isSelected = selectedIds.has(item.id);
-    const isProcessing = item.status === 'pending' || item.status === 'processing';
+    const isProcessing = (item.status === 'pending' || item.status === 'processing') && !loadedPhotos.has(item.id);
 
     return (
       <TouchableOpacity
@@ -140,7 +141,11 @@ export default function EventGalleryScreen() {
         onLongPress={() => handlePhotoLongPress(item.id)}
         style={[styles.thumbnailWrap, { marginRight: (index + 1) % COLUMN_COUNT === 0 ? 0 : SPACING }]}
       >
-        <Image source={{ uri: item.image_url }} style={styles.thumbnail} />
+        <Image 
+          source={{ uri: item.image_url }} 
+          style={styles.thumbnail}
+          onLoadEnd={() => setLoadedPhotos(prev => new Set(prev).add(item.id))}
+        />
         
         {/* Processing Blur Overlay */}
         {isProcessing && (
@@ -241,6 +246,25 @@ interface ViewerProps {
   onClose: () => void;
 }
 
+function ViewerItem({ item }: { item: PhotoResponse }) {
+  const [loading, setLoading] = useState(true);
+  return (
+    <View style={styles.viewerItem}>
+      <Image 
+        source={{ uri: item.image_url }} 
+        style={styles.viewerImage} 
+        resizeMode="contain" 
+        onLoadEnd={() => setLoading(false)}
+      />
+      {loading && (
+        <View style={styles.viewerLoading}>
+          <ActivityIndicator size="large" color={C.white} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 function PhotoViewerModal({ visible, photos, initialIndex, onClose }: ViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   
@@ -249,11 +273,7 @@ function PhotoViewerModal({ visible, photos, initialIndex, onClose }: ViewerProp
     if (visible) setCurrentIndex(initialIndex);
   }, [visible, initialIndex]);
 
-  const renderViewerItem = ({ item }: { item: PhotoResponse }) => (
-    <View style={styles.viewerItem}>
-      <Image source={{ uri: item.image_url }} style={styles.viewerImage} resizeMode="contain" />
-    </View>
-  );
+  const renderViewerItem = ({ item }: { item: PhotoResponse }) => <ViewerItem item={item} />;
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -435,5 +455,11 @@ const styles = StyleSheet.create({
   viewerImage: {
     width: '100%',
     height: '100%',
+  },
+  viewerLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
   },
 });
