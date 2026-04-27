@@ -1,6 +1,8 @@
 import pika
 import json
 from config import get_env
+from services.pipeline import process_image
+from services.vector_store import init_index
 from utils.image_loader import download_image
 
 RABBIT_MQ_HOST = get_env("RABBITMQ_HOST")
@@ -30,15 +32,28 @@ channel.queue_bind(
 
 
 def callback(ch, method, properties, body):
+    index = init_index()
     data = json.loads(body)
+
     print(f"INFO Received:\n {data}")
 
+    img_url = data["r2URL"]
+    photo_id = data["photoID"]
+    event_id = data["eventID"]
+
     img_path = download_image(
-        url=data["r2URL"],
+        url=img_url,
         folder="temp",
     )
 
-    print(img_path)
+    process_image(
+        index=index,
+        path=img_path,
+        filename=photo_id,
+        namespace=event_id,
+    )
+
+    print(f"INFO indexed faces from \nphoto: {photo_id}\nurl: {img_url}")
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 

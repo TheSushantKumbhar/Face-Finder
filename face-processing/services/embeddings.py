@@ -12,6 +12,6 @@ def process_face(face, face_id, filename):
         "id": f"face-{face_id}",
         "values": embedding,
         "metadata": {
-            "filename": filename,
+            "photo_id": filename,
         },
     }

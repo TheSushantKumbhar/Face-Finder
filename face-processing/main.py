@@ -15,7 +15,6 @@ def main():
             index=index,
             path=path,
             filename=filename,
-            face_counter=face_counter,
             namespace=NAMESPACE,
         )
 
