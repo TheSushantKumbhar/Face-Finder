@@ -28,7 +28,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { createEventApi, getEventsApi, EventResponse } from '../../services/api';
+import { createEventApi, getEventsApi, deleteEventApi, EventResponse } from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../navigation/MainNavigator';
@@ -157,6 +157,31 @@ function OrganizerView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteEvent = (eventId: string, eventName: string) => {
+    Alert.alert(
+      "Delete Event",
+      `Are you sure you want to delete "${eventName}"? All photos and data will be permanently removed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await deleteEventApi(eventId);
+              setEvents((prev) => prev.filter(e => e.id !== eventId));
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete event');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const filtered = events.filter((e) =>
@@ -325,6 +350,7 @@ function OrganizerView() {
                     email={email}
                     index={index}
                     onPress={() => navigation.navigate('EventUpload', { eventId: item.id, eventName: item.name })}
+                    onDelete={() => handleDeleteEvent(item.id, item.name)}
                   />
                 ))
               )}
@@ -357,9 +383,10 @@ interface EventCardProps {
   email: string;
   index: number;
   onPress: () => void;
+  onDelete: () => void;
 }
 
-function EventCard({ event, username, email, index, onPress }: EventCardProps) {
+function EventCard({ event, username, email, index, onPress, onDelete }: EventCardProps) {
   const cardAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -383,12 +410,18 @@ function EventCard({ event, username, email, index, onPress }: EventCardProps) {
         },
       ]}
     >
-      <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
       {/* Top row */}
       <View style={styles.cardTopRow}>
-        <View style={styles.cardEventDot} />
-        <Text style={styles.cardDate}>{formatDate(event.created_at)}</Text>
+        <View style={styles.dateWrap}>
+          <View style={styles.cardEventDot} />
+          <Text style={styles.cardDate}>{formatDate(event.created_at)}</Text>
+        </View>
+        <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Ionicons name="trash-outline" size={16} color="#FF453A" />
+        </TouchableOpacity>
       </View>
+
+      <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
 
       {/* Event name */}
       <Text style={styles.cardName} numberOfLines={2}>{event.name}</Text>
@@ -692,8 +725,16 @@ const styles = StyleSheet.create({
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 10,
+  },
+  dateWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteBtn: {
+    padding: 4,
   },
   cardEventDot: {
     width: 6,

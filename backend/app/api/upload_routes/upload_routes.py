@@ -23,6 +23,7 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 async def init_upload(
     file_name: str,
     user_id: str,
+    event_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     try:
@@ -38,6 +39,7 @@ async def init_upload(
         upload = Upload(
             upload_id=upload_id,
             user_id=user_id,
+            event_id=uuid.UUID(event_id),
             file_key=file_key,
             r2_upload_id=response["UploadId"],
             status="in_progress",
@@ -199,13 +201,14 @@ async def complete_upload(
             event_id=UUID(event_id),
             uploaded_by=UUID(user_id),
             image_url=image_url,
-            status=PhotoStatus.processed
+            status=PhotoStatus.completed
         )
 
         db.add(photo)
 
-        # 7. Update upload status
+        # 7. Update upload status and link to event
         upload.status = "completed"
+        upload.event_id = UUID(event_id)
 
         await db.commit()
 

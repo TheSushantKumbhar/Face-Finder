@@ -11,7 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 // export const BASE_URL = 'https://pcs-cabinets-carried-emission.trycloudflare.com'; // Android emulator → localhost
 // For physical device, use your machine's LAN IP, e.g. 'http://192.168.1.100:8000'
 
-const isDev = false;
+const isDev = true;
 
 export const BASE_URL = isDev
   ? 'http://192.168.1.10:8000'
@@ -210,6 +210,25 @@ export async function createEventApi(data: EventCreateData): Promise<EventRespon
   return await response.json();
 }
 
+export async function deleteEventApi(eventId: string): Promise<{ message: string }> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const response = await fetch(`${BASE_URL}/events/${eventId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to delete event');
+  }
+
+  return await response.json();
+}
+
 // ── Upload API ─────────────────────────────────────────────
 
 export interface InitUploadResponse {
@@ -219,9 +238,9 @@ export interface InitUploadResponse {
   chunk_size: number;
 }
 
-export async function initUploadApi(fileName: string, userId: string): Promise<InitUploadResponse> {
+export async function initUploadApi(fileName: string, userId: string, eventId: string): Promise<InitUploadResponse> {
   const token = await getToken();
-  const response = await fetch(`${BASE_URL}/upload/init?file_name=${encodeURIComponent(fileName)}&user_id=${encodeURIComponent(userId)}`, {
+  const response = await fetch(`${BASE_URL}/upload/init?file_name=${encodeURIComponent(fileName)}&user_id=${encodeURIComponent(userId)}&event_id=${encodeURIComponent(eventId)}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` }
   });

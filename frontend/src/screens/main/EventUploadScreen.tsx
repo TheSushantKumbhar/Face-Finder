@@ -290,7 +290,7 @@ export default function EventUploadScreen() {
       // 2. Init Upload on backend
       let initRes;
       try {
-        initRes = await initUploadApi(task.fileName, userId);
+        initRes = await initUploadApi(task.fileName, userId, eventId);
       } catch (e: any) {
         throw new Error(`Init Upload Failed: ${e.message}`);
       }
