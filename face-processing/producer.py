@@ -2,12 +2,12 @@ import pika
 import json
 from config import get_env
 
-RABBIT_MQ_HOST = get_env("RABBITMQ_HOST")
+RABBIT_MQ_URL = get_env("RABBITMQ_URL")
 EXCHANGE_NAME = get_env("RABBITMQ_EXCHANGE_NAME")
 QUEUE_NAME = get_env("RABBITMQ_QUEUE_NAME")
 ROUTING_KEY = get_env("RABBITMQ_ROUTING_KEY")
 
-connection_params = pika.ConnectionParameters(RABBIT_MQ_HOST)
+connection_params = pika.URLParameters(RABBIT_MQ_URL)
 connection = pika.BlockingConnection(connection_params)
 
 channel = connection.channel()
@@ -22,7 +22,7 @@ channel.exchange_declare(
 message = {
     "eventID": "event123",
     "photoID": "1",
-    "r2URL": "https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev/test/event123/1.jpeg",
+    "r2URL": "https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev/test/event123/2.jpeg",
 }
 
 channel.basic_publish(
