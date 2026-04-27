@@ -8,6 +8,7 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { UploadProvider } from './src/context/UploadContext';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -15,7 +16,9 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <ThemeProvider>
-          <RootNavigator />
+          <UploadProvider>
+            <RootNavigator />
+          </UploadProvider>
         </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>

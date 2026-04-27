@@ -12,6 +12,7 @@ class PhotoStatus(str, enum.Enum):
     pending = "pending"
     processed = "processed"
     failed = "failed"
+    completed = "completed"
 
 
 class Photo(Base):

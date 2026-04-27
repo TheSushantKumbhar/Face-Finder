@@ -3,6 +3,8 @@
  * ────────────────────────────────
  * A premium, black-and-white, highly animated screen for uploading photos to an event.
  * Handles chunked multipart uploads with chunk progress and status.
+ *
+ * Upload state is managed by UploadContext so it persists across navigation.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -17,22 +19,13 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
-  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { uploadAsync, FileSystemUploadType, readAsStringAsync, writeAsStringAsync, deleteAsync, getInfoAsync, copyAsync, makeDirectoryAsync, EncodingType, cacheDirectory, documentDirectory } from 'expo-file-system/legacy';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../navigation/RootNavigator';
-import { useAuth } from '../../context/AuthContext';
-import {
-  initUploadApi,
-  getPresignedUrlApi,
-  completePartApi,
-  completeUploadApi
-} from '../../services/api';
+import { useUpload, UploadTask } from '../../context/UploadContext';
 
 // Helper
 const formatMB = (bytes?: number) => {
@@ -55,22 +48,6 @@ const C = {
   success: '#EAEAEA',
   error: '#FF5555',
 };
-
-type UploadStatus = 'pending' | 'uploading' | 'paused' | 'completed' | 'failed';
-
-interface UploadTask {
-  id: string; // usually local URI
-  uri: string;
-  fileName: string;
-  fileSize?: number;
-  progress: number;
-  status: UploadStatus;
-  totalParts: number;
-  uploadedParts: number;
-  uploadId?: string; // from backend
-  errorMsg?: string;
-  cancelFlag?: { current: boolean };
-}
 
 interface TaskCardProps {
   item: UploadTask;
@@ -142,17 +119,20 @@ export default function EventUploadScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { eventId, eventName } = route.params || { eventId: '', eventName: 'Event' };
   
-  const [userId, setUserId] = useState<string>('');
+  const {
+    getTasksForEvent,
+    isProcessingImages,
+    isUploadingAllForEvent,
+    pickImages,
+    startUpload,
+    uploadAll,
+    removeTask,
+  } = useUpload();
 
-  const [tasks, setTasks] = useState<UploadTask[]>([]);
+  const tasks = getTasksForEvent(eventId);
+  const isUploadingAll = isUploadingAllForEvent(eventId);
+
   const [selectedTask, setSelectedTask] = useState<UploadTask | null>(null);
-  const [isProcessingImages, setIsProcessingImages] = useState(false);
-  const [isUploadingAll, setIsUploadingAll] = useState(false);
-
-  const tasksRef = useRef<UploadTask[]>([]);
-  useEffect(() => {
-    tasksRef.current = tasks;
-  }, [tasks]);
   
   // Overall upload stats
   const totalUploads = tasks.length;
@@ -162,284 +142,12 @@ export default function EventUploadScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // For demo purposes, we need a user ID. If not available from AuthContext, we use a fallback or fetch it.
-    import('../../services/api').then((api) => {
-      api.getMeApi().then((res) => setUserId(res.id)).catch(() => {});
-    });
-
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
   }, []);
-
-  /* ── Actions ─────────────────────────────────────────────── */
-
-  const pickImages = async () => {
-    setIsProcessingImages(true);
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: true,
-      });
-
-      if (!result.canceled && result.assets) {
-        // Use documentDirectory (persistent, NOT cleaned by Android cache manager)
-        // instead of cacheDirectory which Android can wipe at any time.
-        const uploadDir = (documentDirectory || cacheDirectory || '') + 'face_finder_uploads/';
-
-        // Ensure the directory exists
-        try {
-          await makeDirectoryAsync(uploadDir, { intermediates: true });
-        } catch {
-          // Directory might already exist
-        }
-
-        // Read and write each file to our persistent directory.
-        // We use readAsStringAsync + writeAsStringAsync instead of copyAsync
-        // because copyAsync silently fails (resolves without creating files).
-        // Process in parallel for speed.
-        const assets = result.assets;
-        const newTasks: UploadTask[] = [];
-
-        const processAsset = async (asset: ImagePicker.ImagePickerAsset, index: number) => {
-          const fileName = asset.fileName || `photo_${Date.now()}_${index}.jpg`;
-          const destPath = uploadDir + `${Date.now()}_${index}_${fileName}`;
-
-          try {
-            // Copy file at native level to avoid JS bridge out-of-memory errors
-            await copyAsync({
-              from: asset.uri,
-              to: destPath,
-            });
-
-            // Verify the file was actually created
-            const info = await getInfoAsync(destPath);
-            if (!info.exists) {
-              throw new Error('File not created after write');
-            }
-
-            console.log(`✓ Saved ${fileName} (${((info.size || 0) / 1024 / 1024).toFixed(1)}MB)`);
-
-            return {
-              id: destPath,
-              uri: destPath,
-              fileName,
-              fileSize: info.size || asset.fileSize,
-              progress: 0,
-              status: 'pending' as UploadStatus,
-              totalParts: 0,
-              uploadedParts: 0,
-            };
-          } catch (err: any) {
-            console.log(`✗ Failed to save ${fileName}: ${err.message}`);
-            // Fall back to original URI
-            return {
-              id: asset.uri,
-              uri: asset.uri,
-              fileName,
-              fileSize: asset.fileSize,
-              progress: 0,
-              status: 'pending' as UploadStatus,
-              totalParts: 0,
-              uploadedParts: 0,
-            };
-          }
-        };
-
-        // Process all in parallel to grab them before Android cleans the ImagePicker cache.
-        // copyAsync is purely native, so this won't cause JS out-of-memory errors even for 100+ files.
-        const results = await Promise.all(
-          assets.map((asset, idx) => processAsset(asset, idx))
-        );
-        newTasks.push(...results);
-
-        const savedCount = newTasks.filter(t => t.uri.includes('face_finder_uploads')).length;
-        console.log(`Saved ${savedCount}/${assets.length} photos to persistent storage`);
-        setTasks((prev) => [...prev, ...newTasks]);
-      }
-    } finally {
-      setIsProcessingImages(false);
-    }
-  };
-
-  const startUpload = async (taskId: string) => {
-    if (!userId) {
-      Alert.alert('Error', 'User ID not found');
-      return;
-    }
-
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: 'uploading', errorMsg: undefined, progress: 0, uploadedParts: 0 } : t))
-    );
-
-    const task = tasksRef.current.find((t) => t.id === taskId);
-    if (!task) return;
-
-    try {
-      const fileUri = task.uri;
-
-      // 1. Get file size
-      const fileInfo = await getInfoAsync(fileUri);
-      if (!fileInfo.exists) throw new Error('File does not exist: ' + fileUri);
-      const fileSize = fileInfo.size || 0;
-      if (fileSize === 0) throw new Error('File size is 0: ' + fileUri);
-      console.log(`Uploading: ${task.fileName}, size: ${fileSize}, uri: ${fileUri}`);
-
-      // 2. Init Upload on backend
-      let initRes;
-      try {
-        initRes = await initUploadApi(task.fileName, userId, eventId);
-      } catch (e: any) {
-        throw new Error(`Init Upload Failed: ${e.message}`);
-      }
-      const { upload_id, chunk_size } = initRes;
-
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, uploadId: upload_id } : t));
-
-      const totalParts = Math.ceil(fileSize / chunk_size);
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, totalParts } : t));
-
-      // 3. Upload each part sequentially (one chunk at a time for reliability)
-      for (let i = 0; i < totalParts; i++) {
-        const partNumber = i + 1;
-        const offset = i * chunk_size;
-        const length = Math.min(chunk_size, fileSize - offset);
-
-        // 3a. Get presigned URL from backend
-        let presignedUrl: string;
-        try {
-          const res = await getPresignedUrlApi(upload_id, partNumber);
-          presignedUrl = res.url;
-        } catch (e: any) {
-          throw new Error(`Presigned URL Failed (part ${partNumber}): ${e.message}`);
-        }
-
-        // 3b. For single-part files, upload the original file directly using native uploader
-        if (totalParts === 1) {
-          const uploadResult = await uploadAsync(presignedUrl, fileUri, {
-            httpMethod: 'PUT',
-            uploadType: FileSystemUploadType.BINARY_CONTENT,
-          });
-
-          if (uploadResult.status < 200 || uploadResult.status >= 300) {
-            throw new Error(`Upload failed with status ${uploadResult.status}`);
-          }
-
-          const etag = uploadResult.headers['etag'] || uploadResult.headers['ETag'] || uploadResult.headers['Etag'];
-          if (!etag) throw new Error('No ETag received from upload');
-
-          try {
-            await completePartApi(upload_id, partNumber, etag);
-          } catch (e: any) {
-            throw new Error(`Complete Part Failed: ${e.message}`);
-          }
-        } else {
-          // 3b (multi-part). Read chunk as base64, write to temp file, upload temp file
-          const base64Chunk = await readAsStringAsync(fileUri, {
-            encoding: EncodingType.Base64,
-            position: offset,
-            length: length,
-          });
-
-          const tempChunkUri = (cacheDirectory || '') + `chunk_${upload_id}_${partNumber}.tmp`;
-          await writeAsStringAsync(tempChunkUri, base64Chunk, {
-            encoding: EncodingType.Base64,
-          });
-
-          const uploadResult = await uploadAsync(presignedUrl, tempChunkUri, {
-            httpMethod: 'PUT',
-            uploadType: FileSystemUploadType.BINARY_CONTENT,
-          });
-
-          // Clean up temp file
-          await deleteAsync(tempChunkUri, { idempotent: true });
-
-          if (uploadResult.status < 200 || uploadResult.status >= 300) {
-            throw new Error(`Chunk ${partNumber} failed with status ${uploadResult.status}`);
-          }
-
-          const etag = uploadResult.headers['etag'] || uploadResult.headers['ETag'] || uploadResult.headers['Etag'];
-          if (!etag) throw new Error(`No ETag received for chunk ${partNumber}`);
-
-          try {
-            await completePartApi(upload_id, partNumber, etag);
-          } catch (e: any) {
-            throw new Error(`Complete Part Failed (part ${partNumber}): ${e.message}`);
-          }
-        }
-
-        // Update progress
-        setTasks((prev) =>
-          prev.map((t) => {
-            if (t.id === taskId) {
-              const newUploadedParts = i + 1;
-              return {
-                ...t,
-                uploadedParts: newUploadedParts,
-                progress: Math.floor((newUploadedParts / totalParts) * 100)
-              };
-            }
-            return t;
-          })
-        );
-      }
-
-      // 4. Complete Upload
-      try {
-        await completeUploadApi(upload_id, eventId, userId);
-      } catch (e: any) {
-        throw new Error(`Complete Upload Failed: ${e.message}`);
-      }
-
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: 'completed', progress: 100 } : t))
-      );
-
-      // Clean up the local copy from persistent storage
-      try {
-        await deleteAsync(fileUri, { idempotent: true });
-      } catch {
-        // Ignore cleanup errors
-      }
-
-    } catch (err: any) {
-      console.log('Upload error', err);
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: 'failed', errorMsg: err.message || 'Unknown error' } : t))
-      );
-    }
-  };
-
-  const uploadAll = async () => {
-    if (isUploadingAll) return;
-    setIsUploadingAll(true);
-
-    const pendingTaskIds = tasksRef.current
-      .filter((task) => task.status === 'pending' || task.status === 'failed')
-      .map((task) => task.id);
-
-    const CONCURRENCY_LIMIT = 1; // Process exactly ONE file at a time
-    let currentIndex = 0;
-
-    const worker = async () => {
-      while (currentIndex < pendingTaskIds.length) {
-        const idx = currentIndex++;
-        const taskId = pendingTaskIds[idx];
-        await startUpload(taskId);
-      }
-    };
-
-    const workers = Array.from({ length: Math.min(pendingTaskIds.length, CONCURRENCY_LIMIT) }).map(worker);
-    await Promise.all(workers);
-
-    setIsUploadingAll(false);
-  };
-
-  const removeTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-  };
 
   /* ── Renderers ───────────────────────────────────────────── */
 
@@ -495,7 +203,7 @@ export default function EventUploadScreen() {
         <View style={styles.actionsRow}>
           <TouchableOpacity 
             style={[styles.pickBtn, isProcessingImages && { opacity: 0.7 }]} 
-            onPress={pickImages}
+            onPress={() => pickImages(eventId)}
             disabled={isProcessingImages}
           >
             {isProcessingImages ? (
@@ -521,7 +229,7 @@ export default function EventUploadScreen() {
           <View style={[styles.actionsRow, { marginTop: -4 }]}>
             <TouchableOpacity 
               style={[styles.uploadAllBtn, isUploadingAll && { opacity: 0.7 }]} 
-              onPress={uploadAll}
+              onPress={() => uploadAll(eventId)}
               disabled={isUploadingAll}
             >
               {isUploadingAll ? (
