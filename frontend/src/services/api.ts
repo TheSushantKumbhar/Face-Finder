@@ -17,7 +17,12 @@ import * as SecureStore from 'expo-secure-store';
 //   ? 'http://192.168.1.10:8000'
 //   : 'https://face-finder-9zkc.onrender.com';
 
-export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
+// export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
+
+import Constants from 'expo-constants';
+
+export const BASE_URL =
+  Constants.expoConfig?.extra?.BASE_URL as string;
 
 const TOKEN_KEY = 'face_finder_token';
 
