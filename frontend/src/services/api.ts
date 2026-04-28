@@ -11,11 +11,13 @@ import * as SecureStore from 'expo-secure-store';
 // export const BASE_URL = 'https://pcs-cabinets-carried-emission.trycloudflare.com'; // Android emulator → localhost
 // For physical device, use your machine's LAN IP, e.g. 'http://192.168.1.100:8000'
 
-const isDev = true;
+// const isDev = true;
 
-export const BASE_URL = isDev
-  ? 'http://192.168.1.10:8000'
-  : 'https://face-finder-9zkc.onrender.com';
+// export const BASE_URL = isDev
+//   ? 'http://192.168.1.10:8000'
+//   : 'https://face-finder-9zkc.onrender.com';
+
+export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
 const TOKEN_KEY = 'face_finder_token';
 
