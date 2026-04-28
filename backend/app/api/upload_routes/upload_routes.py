@@ -1,3 +1,4 @@
+from math import prod
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from app.services.storage_service import r2
 
 from app.models.photo import Photo, PhotoStatus
 from uuid import UUID
+from app.services.producer import Producer
 
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -21,19 +23,14 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 # INIT UPLOAD
 @router.post("/init")
 async def init_upload(
-    file_name: str,
-    user_id: str,
-    event_id: str,
-    db: AsyncSession = Depends(get_db)
+    file_name: str, user_id: str, event_id: str, db: AsyncSession = Depends(get_db)
 ):
     try:
         upload_id = str(uuid.uuid4())
         file_key = f"uploads/{user_id}/{upload_id}_{file_name}"
 
         response = r2.create_multipart_upload(
-            Bucket=os.getenv("R2_BUCKET_NAME"),
-            Key=file_key,
-            ContentType="image/jpeg"
+            Bucket=os.getenv("R2_BUCKET_NAME"), Key=file_key, ContentType="image/jpeg"
         )
 
         upload = Upload(
@@ -43,7 +40,7 @@ async def init_upload(
             file_key=file_key,
             r2_upload_id=response["UploadId"],
             status="in_progress",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         db.add(upload)
@@ -53,7 +50,7 @@ async def init_upload(
             "upload_id": upload_id,
             "file_key": file_key,
             "r2_upload_id": response["UploadId"],
-            "chunk_size": 5 * 1024 * 1024
+            "chunk_size": 5 * 1024 * 1024,
         }
 
     except Exception as e:
@@ -64,13 +61,9 @@ async def init_upload(
 # PRESIGNED URL
 @router.post("/presigned-url")
 async def get_presigned_url(
-    upload_id: str,
-    part_number: int,
-    db: AsyncSession = Depends(get_db)
+    upload_id: str, part_number: int, db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(Upload).where(Upload.upload_id == upload_id)
-    )
+    result = await db.execute(select(Upload).where(Upload.upload_id == upload_id))
     upload = result.scalar_one_or_none()
 
     if not upload:
@@ -86,7 +79,7 @@ async def get_presigned_url(
                 "UploadId": upload.r2_upload_id,
                 "PartNumber": part_number,
             },
-            3600
+            3600,
         )
 
         return {"url": url}
@@ -98,19 +91,14 @@ async def get_presigned_url(
 #  PART COMPLETE (ETag STORAGE)
 @router.post("/part-complete")
 async def part_complete(
-    upload_id: str,
-    part_number: int,
-    etag: str,
-    db: AsyncSession = Depends(get_db)
+    upload_id: str, part_number: int, etag: str, db: AsyncSession = Depends(get_db)
 ):
     try:
         # Clean ETag
-        etag = etag.replace('"', '')
+        etag = etag.replace('"', "")
 
         # Check upload exists
-        result = await db.execute(
-            select(Upload).where(Upload.upload_id == upload_id)
-        )
+        result = await db.execute(select(Upload).where(Upload.upload_id == upload_id))
         upload = result.scalar_one_or_none()
 
         if not upload:
@@ -119,8 +107,7 @@ async def part_complete(
         # Prevent duplicate parts
         result = await db.execute(
             select(UploadPart).where(
-                UploadPart.upload_id == upload_id,
-                UploadPart.part_number == part_number
+                UploadPart.upload_id == upload_id, UploadPart.part_number == part_number
             )
         )
         existing_part = result.scalar_one_or_none()
@@ -128,11 +115,7 @@ async def part_complete(
         if existing_part:
             existing_part.etag = etag
         else:
-            part = UploadPart(
-                upload_id=upload_id,
-                part_number=part_number,
-                etag=etag
-            )
+            part = UploadPart(upload_id=upload_id, part_number=part_number, etag=etag)
             db.add(part)
 
         await db.commit()
@@ -147,18 +130,14 @@ async def part_complete(
 from app.models.photo import Photo, PhotoStatus
 from uuid import UUID
 
+
 @router.post("/complete")
 async def complete_upload(
-    upload_id: str,
-    event_id: str,
-    user_id: str,
-    db: AsyncSession = Depends(get_db)
+    upload_id: str, event_id: str, user_id: str, db: AsyncSession = Depends(get_db)
 ):
     try:
         # 1. Get upload
-        result = await db.execute(
-            select(Upload).where(Upload.upload_id == upload_id)
-        )
+        result = await db.execute(select(Upload).where(Upload.upload_id == upload_id))
         upload = result.scalar_one_or_none()
 
         if not upload:
@@ -178,11 +157,7 @@ async def complete_upload(
 
         # 4. Format for R2
         r2_parts = [
-            {
-                "PartNumber": part.part_number,
-                "ETag": part.etag
-            }
-            for part in sorted_parts
+            {"PartNumber": part.part_number, "ETag": part.etag} for part in sorted_parts
         ]
 
         # 5. Complete upload in R2
@@ -191,17 +166,19 @@ async def complete_upload(
             Bucket=os.getenv("R2_BUCKET_NAME"),
             Key=upload.file_key,
             UploadId=upload.r2_upload_id,
-            MultipartUpload={"Parts": r2_parts}
+            MultipartUpload={"Parts": r2_parts},
         )
 
         #  6. Create Photo entry
-        image_url = f"https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev/{upload.file_key}"
+        image_url = (
+            f"https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev/{upload.file_key}"
+        )
 
         photo = Photo(
             event_id=UUID(event_id),
             uploaded_by=UUID(user_id),
             image_url=image_url,
-            status=PhotoStatus.completed
+            status=PhotoStatus.completed,
         )
 
         db.add(photo)
@@ -212,29 +189,31 @@ async def complete_upload(
 
         await db.commit()
 
-        return {
-            "message": "Upload completed successfully",
-            "image_url": image_url
+        face_processing_msg = {
+            "eventID": str(event_id),
+            "photoID": str(photo.id),
+            "r2URL": image_url,
         }
+
+        producer = Producer()
+        producer.publish(face_processing_msg)
+        producer.close()
+
+        return {"message": "Upload completed successfully", "image_url": image_url}
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 
 @router.get("/status")
-async def upload_status(
-    upload_id: str,
-    db: AsyncSession = Depends(get_db)
-):
+async def upload_status(upload_id: str, db: AsyncSession = Depends(get_db)):
     try:
         # 1. Check upload exists
-        result = await db.execute(
-            select(Upload).where(Upload.upload_id == upload_id)
-        )
+        result = await db.execute(select(Upload).where(Upload.upload_id == upload_id))
         upload = result.scalar_one_or_none()
 
         if not upload:
@@ -242,9 +221,7 @@ async def upload_status(
 
         # 2. Get uploaded parts
         result = await db.execute(
-            select(UploadPart.part_number).where(
-                UploadPart.upload_id == upload_id
-            )
+            select(UploadPart.part_number).where(UploadPart.upload_id == upload_id)
         )
 
         parts = result.scalars().all()
@@ -252,7 +229,7 @@ async def upload_status(
         return {
             "upload_id": upload_id,
             "uploaded_parts": parts,
-            "status": upload.status
+            "status": upload.status,
         }
 
     except Exception as e:
