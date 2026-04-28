@@ -15,8 +15,12 @@ interface AuthContextType {
   username: string;
   email: string;
   role: UserRole;
+  hasSelfies: boolean;
+  selfieChecked: boolean;
   login: (username: string, role: string, email?: string) => void;
   logout: () => void;
+  setHasSelfies: (val: boolean) => void;
+  setSelfieChecked: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,8 +28,12 @@ const AuthContext = createContext<AuthContextType>({
   username: '',
   email: '',
   role: null,
+  hasSelfies: false,
+  selfieChecked: false,
   login: () => {},
   logout: () => {},
+  setHasSelfies: () => {},
+  setSelfieChecked: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -39,12 +47,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(null);
+  const [hasSelfies, setHasSelfies] = useState(false);
+  const [selfieChecked, setSelfieChecked] = useState(false);
 
   const login = useCallback((name: string, newRole: string, userEmail?: string) => {
     setUsername(name);
     setEmail(userEmail || '');
     setRole(newRole as UserRole);
     setIsAuthenticated(true);
+    // Reset selfie state on fresh login — will be checked by navigator
+    setHasSelfies(false);
+    setSelfieChecked(false);
   }, []);
 
   const logout = useCallback(async () => {
@@ -52,6 +65,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUsername('');
     setEmail('');
     setRole(null);
+    setHasSelfies(false);
+    setSelfieChecked(false);
     setIsAuthenticated(false);
   }, []);
 
@@ -61,10 +76,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       username,
       email,
       role,
+      hasSelfies,
+      selfieChecked,
       login,
       logout,
+      setHasSelfies,
+      setSelfieChecked,
     }),
-    [isAuthenticated, username, email, role, login, logout]
+    [isAuthenticated, username, email, role, hasSelfies, selfieChecked, login, logout]
   );
 
   return (
@@ -73,4 +92,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-

@@ -40,12 +40,12 @@ class User(Base):
     )
 
     role : Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"),
+        Enum(UserRole, name="user_role",create_type=True),
         default=UserRole.user,
         nullable=False
     )
 
-    selfie_url: Mapped[str] = mapped_column(   
+    profile_photo_url : Mapped[str] = mapped_column(   
         String,
         nullable=True  
     )
@@ -61,3 +61,4 @@ class User(Base):
     )
 
     events = relationship("Event", back_populates="creator")
+    selfies = relationship("UserSelfie", back_populates="user", cascade="all, delete")

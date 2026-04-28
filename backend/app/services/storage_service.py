@@ -8,12 +8,9 @@ load_dotenv()
 R2_ENDPOINT = os.getenv("R2_ENDPOINT")
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY")
 R2_SECRET_KEY = os.getenv("R2_SECRET_KEY")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "face-finder")
 
-# 🔥 Add this debug once (remove later)
-print("R2_ENDPOINT:", R2_ENDPOINT)
-
-# ❗ Safety check (IMPORTANT)
-if not all([R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY]):
+if not all([R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET_NAME]):
     raise ValueError("Missing R2 environment variables")
 
 # Create R2 client

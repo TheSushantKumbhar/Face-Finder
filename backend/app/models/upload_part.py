@@ -11,7 +11,7 @@ class UploadPart(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
     upload_id: Mapped[str] = mapped_column(
-        ForeignKey("uploads.upload_id")
+        ForeignKey("uploads.upload_id", ondelete="CASCADE")
     )
 
     part_number: Mapped[int] = mapped_column()

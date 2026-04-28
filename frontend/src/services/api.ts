@@ -303,3 +303,86 @@ export async function getEventPhotosApi(eventId: string): Promise<PhotoResponse[
 
   return response.json();
 }
+
+// ── Selfie API ────────────────────────────────────────────
+
+export interface SelfieStatusResponse {
+  has_selfies: boolean;
+  selfies: {
+    front_url: string | null;
+    left_url: string | null;
+    right_url: string | null;
+  };
+}
+
+export async function checkSelfieStatusApi(): Promise<SelfieStatusResponse> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const response = await fetch(`${BASE_URL}/selfies/status`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    // Try JSON first, fall back to text
+    const text = await response.text();
+    let detail = 'Failed to check selfie status';
+    try {
+      const parsed = JSON.parse(text);
+      detail = parsed.detail || detail;
+    } catch {
+      detail = text || detail;
+    }
+    throw new Error(detail);
+  }
+
+  return response.json();
+}
+
+export interface SelfieUploadResponse {
+  message: string;
+  data: {
+    front_url: string;
+    left_url: string;
+    right_url: string;
+  };
+}
+
+export async function uploadSelfiesApi(
+  frontUri: string,
+  leftUri: string,
+  rightUri: string
+): Promise<SelfieUploadResponse> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const formData = new FormData();
+
+  const createFileEntry = (uri: string, fieldName: string) => {
+    const fileName = uri.split('/').pop() || `${fieldName}.jpg`;
+    const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    return { uri, name: fileName, type: mimeType } as any;
+  };
+
+  formData.append('front_image', createFileEntry(frontUri, 'front'));
+  formData.append('left_image', createFileEntry(leftUri, 'left'));
+  formData.append('right_image', createFileEntry(rightUri, 'right'));
+
+  const response = await fetch(`${BASE_URL}/selfies/upload-selfie`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // Do NOT set Content-Type — let fetch set boundary for multipart
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to upload selfies');
+  }
+
+  return response.json();
+}
