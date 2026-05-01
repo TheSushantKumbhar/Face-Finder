@@ -6,19 +6,16 @@ from utils.image_loader import load_images
 
 def main():
     index = init_index()
-    face_counter = 0
 
     for filename, path in load_images():
         print(f"INFO processing {filename}")
 
-        face_counter = process_image(
+        process_image(
             index=index,
             path=path,
-            filename=filename,
-            namespace=NAMESPACE,
+            photo_id=filename,
+            event_id=NAMESPACE,
         )
-
-    print(f"INFO indexed {face_counter} faces")
 
 
 if __name__ == "__main__":

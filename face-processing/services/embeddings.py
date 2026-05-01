@@ -6,12 +6,13 @@ def normalize_embedding(embedding):
     return (vec / np.linalg.norm(vec)).tolist()
 
 
-def process_face(face, face_id, filename):
+def process_face(face, face_id, photo_id, event_id):
     embedding = normalize_embedding(face["embedding"])
     return {
         "id": f"face-{face_id}",
         "values": embedding,
         "metadata": {
-            "photo_id": filename,
+            "photo_id": photo_id,
+            "event_id": event_id,
         },
     }

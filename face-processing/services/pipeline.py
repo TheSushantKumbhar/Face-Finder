@@ -4,7 +4,7 @@ from services.face_detection import extract_faces
 from services.vector_store import upsert_vector
 
 
-def process_image(index, path, filename, namespace):
+def process_image(index, path, photo_id, event_id):
     try:
         faces = extract_faces(path)
     except Exception:
@@ -12,5 +12,16 @@ def process_image(index, path, filename, namespace):
         return
 
     for face in faces:
-        vector = process_face(face, uuid.uuid4(), filename)
-        upsert_vector(index, vector, namespace)
+        face_id = str(uuid.uuid4())
+        vector = process_face(
+            face=face,
+            face_id=face_id,
+            photo_id=photo_id,
+            event_id=event_id,
+        )
+
+        upsert_vector(
+            index=index,
+            vector=vector,
+            namespace=event_id,
+        )

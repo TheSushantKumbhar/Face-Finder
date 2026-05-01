@@ -25,3 +25,15 @@ def download_image(url: str, folder: str = "temp") -> str:
         f.write(res.content)
 
     return path
+
+
+def image_cleanup(path: str | None):
+    if not path:
+        print("ERROR no path passed to clean up function")
+        return
+
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception as e:
+            print(f"WARNING failed to delete temp file: {e}")
