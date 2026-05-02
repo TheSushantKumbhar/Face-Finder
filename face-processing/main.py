@@ -1,22 +1,15 @@
-from config import NAMESPACE
-from services.pipeline import process_image
-from services.vector_store import init_index
-from utils.image_loader import load_images
+from fastapi import FastAPI
+from api.routes import router
+from fastapi.middleware.cors import CORSMiddleware
 
+app = FastAPI()
 
-def main():
-    index = init_index()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    for filename, path in load_images():
-        print(f"INFO processing {filename}")
-
-        process_image(
-            index=index,
-            path=path,
-            photo_id=filename,
-            event_id=NAMESPACE,
-        )
-
-
-if __name__ == "__main__":
-    main()
+app.include_router(router)

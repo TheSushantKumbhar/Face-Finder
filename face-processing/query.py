@@ -1,7 +1,9 @@
 from services.face_detection import extract_faces
 from services.embeddings import normalize_embedding
 from services.vector_store import init_index
-from config import NAMESPACE, TOP_K, THRESHOLD
+from config import TOP_K, THRESHOLD
+
+NAMESPACE = "test"
 
 
 def filter_matches(matches, threshold):

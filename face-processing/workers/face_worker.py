@@ -1,35 +1,12 @@
-import pika
 import json
-from config import get_env
+from config import FACE_QUEUE_NAME
+from rabbitmq.connection import create_channel
 from services.pipeline import process_image
-from services.vector_store import init_index
 from utils.image_loader import download_image, image_cleanup
+from services.vector_store import index
 
-RABBIT_MQ_URL = get_env("RABBITMQ_URL")
-EXCHANGE_NAME = get_env("RABBITMQ_EXCHANGE_NAME")
-QUEUE_NAME = get_env("RABBITMQ_QUEUE_NAME")
-ROUTING_KEY = get_env("RABBITMQ_ROUTING_KEY")
-index = init_index()
 
-connection_params = pika.URLParameters(RABBIT_MQ_URL)
-connection = pika.BlockingConnection(connection_params)
-
-channel = connection.channel()
-
-# exchange
-channel.exchange_declare(
-    exchange=EXCHANGE_NAME,
-    exchange_type="direct",
-    durable=True,
-)
-
-channel.queue_declare(queue=QUEUE_NAME, durable=True)
-
-channel.queue_bind(
-    exchange=EXCHANGE_NAME,
-    queue=QUEUE_NAME,
-    routing_key=ROUTING_KEY,
-)
+connection, channel = create_channel()
 
 
 def callback(ch, method, properties, body):
@@ -66,13 +43,13 @@ def callback(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         print(f"ERROR processing the image: {e}")
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
     finally:
         image_cleanup(path=img_path)
 
 
 channel.basic_qos(prefetch_count=1)
+channel.basic_consume(queue=FACE_QUEUE_NAME, on_message_callback=callback)
 
-channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-
-print("INFO Waiting for messages...")
+print("INFO Face worker runnning...")
 channel.start_consuming()
