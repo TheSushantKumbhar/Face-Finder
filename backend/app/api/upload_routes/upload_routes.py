@@ -7,6 +7,7 @@ import uuid
 import os
 from datetime import datetime
 
+from app.config import ROUTING_KEY_FACE
 from dependencies.db_dependency import get_db
 from app.models.upload import Upload
 from app.models.upload_part import UploadPart
@@ -189,6 +190,7 @@ async def complete_upload(
 
         await db.commit()
 
+        # TODO: add event name to this message payload
         face_processing_msg = {
             "eventID": str(event_id),
             "photoID": str(photo.id),
@@ -196,7 +198,7 @@ async def complete_upload(
         }
 
         producer = Producer()
-        producer.publish(face_processing_msg)
+        producer.publish(routing_key=ROUTING_KEY_FACE, msg=face_processing_msg)
         producer.close()
 
         return {"message": "Upload completed successfully", "image_url": image_url}

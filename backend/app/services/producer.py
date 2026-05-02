@@ -1,6 +1,6 @@
 import pika
 import json
-from app.config import RABBIT_MQ_URL, EXCHANGE_NAME, ROUTING_KEY_FACE
+from app.config import RABBIT_MQ_URL, EXCHANGE_NAME
 
 
 class Producer:
@@ -15,10 +15,10 @@ class Producer:
             durable=True,
         )
 
-    def publish(self, msg: dict):
+    def publish(self, routing_key: str, msg: dict):
         self.channel.basic_publish(
             exchange=EXCHANGE_NAME,
-            routing_key=ROUTING_KEY_FACE,
+            routing_key=routing_key,
             body=json.dumps(msg),
             properties=pika.BasicProperties(delivery_mode=2),
         )
