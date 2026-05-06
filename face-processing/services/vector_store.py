@@ -33,7 +33,7 @@ def upsert_vector(index, vector, namespace):
     )
 
 
-def query_photos(input_face_id: str, namespace: str, top_k: int = 10):
+def query_faces(input_face_id: str, namespace: str, top_k: int = 10):
     fetch_response = index.fetch(ids=[input_face_id], namespace="selfies")
 
     if input_face_id not in fetch_response["vectors"]:
