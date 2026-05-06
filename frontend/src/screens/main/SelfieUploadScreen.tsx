@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
-import { uploadSelfiesApi } from '../../services/api';
+import { persistImage, uploadAllSelfies, cleanup } from '../../services/selfieManager';
 
 /* ── Local B&W palette ────────────────────────────────────── */
 const bw = {
@@ -175,7 +175,7 @@ export default function SelfieUploadScreen({ onComplete, onSkip }: Props) {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      handleImageSelected(result.assets[0].uri);
+      await handleImageSelected(result.assets[0].uri);
     }
   }, [activeStep]);
 
@@ -193,12 +193,20 @@ export default function SelfieUploadScreen({ onComplete, onSkip }: Props) {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      handleImageSelected(result.assets[0].uri);
+      await handleImageSelected(result.assets[0].uri);
     }
   }, [activeStep]);
 
-  const handleImageSelected = useCallback((uri: string) => {
-    setImages(prev => ({ ...prev, [activeStep]: uri }));
+  const handleImageSelected = useCallback(async (uri: string) => {
+    // Persist to documentDirectory IMMEDIATELY — ImagePicker temp files
+    // are volatile and get cleaned up by Android at any moment
+    try {
+      const stablePath = await persistImage(uri, activeStep);
+      setImages(prev => ({ ...prev, [activeStep]: stablePath }));
+    } catch (err: any) {
+      Alert.alert('Save Failed', 'Could not save the selected image. Please try again.');
+      return;
+    }
 
     // Auto-advance to next empty slot
     const order: SelfieType[] = ['front', 'left', 'right'];
@@ -224,7 +232,13 @@ export default function SelfieUploadScreen({ onComplete, onSkip }: Props) {
 
     setUploading(true);
     try {
-      await uploadSelfiesApi(images.front, images.left, images.right);
+      await uploadAllSelfies({
+        front: images.front,
+        left: images.left,
+        right: images.right,
+      });
+      // Clean up local copies after successful upload
+      await cleanup();
       setHasSelfies(true);
       setSelfieChecked(true);
       onComplete();

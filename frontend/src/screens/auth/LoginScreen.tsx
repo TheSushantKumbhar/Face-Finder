@@ -153,7 +153,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     setLoading(true);
     try {
       const resp = await loginApi(email.trim(), password);
-      login(resp.username, resp.role);
+      login(resp.username, resp.role, email.trim());
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Something went wrong.';
       Alert.alert('Login Failed', message);

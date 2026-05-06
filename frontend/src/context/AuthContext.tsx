@@ -15,12 +15,15 @@ interface AuthContextType {
   username: string;
   email: string;
   role: UserRole;
+  profilePhotoUrl: string | null;
   hasSelfies: boolean;
   selfieChecked: boolean;
   login: (username: string, role: string, email?: string) => void;
   logout: () => void;
   setHasSelfies: (val: boolean) => void;
   setSelfieChecked: (val: boolean) => void;
+  setUsername: (val: string) => void;
+  setProfilePhotoUrl: (val: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,12 +31,15 @@ const AuthContext = createContext<AuthContextType>({
   username: '',
   email: '',
   role: null,
+  profilePhotoUrl: null,
   hasSelfies: false,
   selfieChecked: false,
   login: () => {},
   logout: () => {},
   setHasSelfies: () => {},
   setSelfieChecked: () => {},
+  setUsername: () => {},
+  setProfilePhotoUrl: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -47,6 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [hasSelfies, setHasSelfies] = useState(false);
   const [selfieChecked, setSelfieChecked] = useState(false);
 
@@ -65,6 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUsername('');
     setEmail('');
     setRole(null);
+    setProfilePhotoUrl(null);
     setHasSelfies(false);
     setSelfieChecked(false);
     setIsAuthenticated(false);
@@ -76,14 +84,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       username,
       email,
       role,
+      profilePhotoUrl,
       hasSelfies,
       selfieChecked,
       login,
       logout,
       setHasSelfies,
       setSelfieChecked,
+      setUsername,
+      setProfilePhotoUrl,
     }),
-    [isAuthenticated, username, email, role, hasSelfies, selfieChecked, login, logout]
+    [isAuthenticated, username, email, role, profilePhotoUrl, hasSelfies, selfieChecked, login, logout]
   );
 
   return (

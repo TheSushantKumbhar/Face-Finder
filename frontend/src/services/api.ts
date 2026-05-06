@@ -58,7 +58,7 @@ export interface ApiError {
 export async function loginApi(
   email: string,
   password: string
-): Promise<LoginResponse & { username: string; role: string }> {
+): Promise<LoginResponse & { username: string; role: string; profile_photo_url: string | null }> {
   // 1. Login to get token
   const response = await fetch(`${BASE_URL}/auth/login`, {
     method: 'POST',
@@ -77,7 +77,7 @@ export async function loginApi(
   // 2. Fetch user profile to get role and username
   const profile = await getMeApi();
 
-  return { ...data, username: profile.username, role: profile.role };
+  return { ...data, username: profile.username, role: profile.role, profile_photo_url: profile.profile_photo_url };
 }
 
 export async function signUpApi(
@@ -142,6 +142,7 @@ export interface UserProfile {
   username: string;
   email: string;
   role: string;
+  profile_photo_url: string | null;
 }
 
 export async function getMeApi(): Promise<UserProfile> {
@@ -311,6 +312,56 @@ export async function getEventPhotosApi(eventId: string): Promise<PhotoResponse[
   return response.json();
 }
 
+// ── Profile Update API ────────────────────────────────────
+
+export interface UpdateProfileResponse {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  profile_photo_url: string | null;
+}
+
+export async function updateProfileApi(
+  username?: string,
+  profilePhotoUri?: string
+): Promise<UpdateProfileResponse> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const formData = new FormData();
+
+  if (username !== undefined) {
+    formData.append('username', username);
+  }
+
+  if (profilePhotoUri) {
+    const fileName = profilePhotoUri.split('/').pop() || 'avatar.jpg';
+    const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    formData.append('profile_photo', {
+      uri: profilePhotoUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+  }
+
+  const response = await fetch(`${BASE_URL}/auth/profile`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to update profile');
+  }
+
+  return response.json();
+}
+
 // ── Selfie API ────────────────────────────────────────────
 
 export interface SelfieStatusResponse {
@@ -342,53 +393,6 @@ export async function checkSelfieStatusApi(): Promise<SelfieStatusResponse> {
       detail = text || detail;
     }
     throw new Error(detail);
-  }
-
-  return response.json();
-}
-
-export interface SelfieUploadResponse {
-  message: string;
-  data: {
-    front_url: string;
-    left_url: string;
-    right_url: string;
-  };
-}
-
-export async function uploadSelfiesApi(
-  frontUri: string,
-  leftUri: string,
-  rightUri: string
-): Promise<SelfieUploadResponse> {
-  const token = await getToken();
-  if (!token) throw new Error('No token found');
-
-  const formData = new FormData();
-
-  const createFileEntry = (uri: string, fieldName: string) => {
-    const fileName = uri.split('/').pop() || `${fieldName}.jpg`;
-    const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-    return { uri, name: fileName, type: mimeType } as any;
-  };
-
-  formData.append('front_image', createFileEntry(frontUri, 'front'));
-  formData.append('left_image', createFileEntry(leftUri, 'left'));
-  formData.append('right_image', createFileEntry(rightUri, 'right'));
-
-  const response = await fetch(`${BASE_URL}/selfies/upload-selfie`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      // Do NOT set Content-Type — let fetch set boundary for multipart
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to upload selfies');
   }
 
   return response.json();

@@ -22,9 +22,24 @@ export type AppStackParamList = {
   MainTabs: undefined;
   EventUpload: { eventId: string; eventName: string };
   EventGallery: { eventId: string; eventName: string };
+  SelfieUpload: undefined;
 };
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
+
+function SelfieUploadScreenWrapper({ navigation }: any) {
+  const { setHasSelfies, setSelfieChecked } = useAuth();
+  return (
+    <SelfieUploadScreen
+      onComplete={() => {
+        setHasSelfies(true);
+        setSelfieChecked(true);
+        navigation.goBack();
+      }}
+      onSkip={() => navigation.goBack()}
+    />
+  );
+}
 
 function AppStack() {
   return (
@@ -39,6 +54,11 @@ function AppStack() {
         name="EventGallery" 
         component={EventGalleryScreen} 
         options={{ presentation: 'card' }}
+      />
+      <Stack.Screen 
+        name="SelfieUpload" 
+        component={SelfieUploadScreenWrapper} 
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
     </Stack.Navigator>
   );
