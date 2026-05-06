@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -68,4 +68,28 @@ async def upload_selfie(
             "left_url": urls.get("left_url"),
             "right_url": urls.get("right_url")
         }
+    }
+
+
+@router.post("/upload-single")
+async def upload_single_selfie(
+    selfie_type: str = Query(..., description="Type of selfie: front, left, or right"),
+    image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a single selfie image. Accepts one file at a time.
+    Used by the mobile client which uploads files sequentially via native upload.
+    """
+    url = await SelfieService.upload_single_selfie(
+        db=db,
+        user=current_user,
+        selfie_type_str=selfie_type,
+        image=image
+    )
+    
+    return {
+        "message": f"{selfie_type} selfie uploaded successfully",
+        "url": url
     }

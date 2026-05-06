@@ -73,4 +73,5 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "username": current_user.username,
         "email": current_user.email,
         "role": current_user.role.value if current_user.role else "user",
+        "profile_photo_url": current_user.profile_photo_url,
     }

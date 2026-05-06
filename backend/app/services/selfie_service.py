@@ -1,7 +1,9 @@
 import os
+import time
 from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.user import User
@@ -16,6 +18,39 @@ def is_allowed_file(filename: str) -> bool:
         return False
     ext = filename.rsplit(".", 1)[1].lower()
     return ext in ALLOWED_EXTENSIONS
+
+def _extract_r2_key(image_url: str) -> str | None:
+    """Extract the R2 object key from a public URL."""
+    if not image_url or R2_PUBLIC_URL_PREFIX not in image_url:
+        return None
+    return image_url.replace(f"{R2_PUBLIC_URL_PREFIX}/", "")
+
+async def _delete_old_selfie_from_r2(
+    db: AsyncSession,
+    user_id,
+    selfie_type: SelfieType
+) -> None:
+    """Look up the existing selfie record and delete the old file from R2."""
+    result = await db.execute(
+        select(UserSelfie).where(
+            UserSelfie.user_id == user_id,
+            UserSelfie.selfie_type == selfie_type
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing and existing.image_url:
+        old_key = _extract_r2_key(existing.image_url)
+        if old_key:
+            try:
+                await run_in_threadpool(
+                    r2.delete_object,
+                    Bucket=R2_BUCKET_NAME,
+                    Key=old_key
+                )
+            except Exception:
+                # Don't fail the upload if old file deletion fails
+                import traceback
+                traceback.print_exc()
 
 class SelfieService:
     @staticmethod
@@ -46,9 +81,13 @@ class SelfieService:
         # 2. Upload to R2 and update DB
         for selfie_type, file in images.items():
             ext = file.filename.rsplit(".", 1)[1].lower()
-            key = f"selfies/{user.id}/{selfie_type.value}.{ext}"
+            ts = int(time.time() * 1000)
+            key = f"selfies/{user.id}/{selfie_type.value}_{ts}.{ext}"
 
             try:
+                # Delete old file from R2 if it exists
+                await _delete_old_selfie_from_r2(db, user.id, selfie_type)
+
                 # Upload using threadpool since boto3 is sync
                 await run_in_threadpool(
                     r2.upload_fileobj,
@@ -85,3 +124,70 @@ class SelfieService:
 
         await db.commit()
         return urls
+
+    @staticmethod
+    async def upload_single_selfie(
+        db: AsyncSession,
+        user: User,
+        selfie_type_str: str,
+        image: UploadFile
+    ) -> str:
+        """Upload a single selfie image by type (front/left/right)."""
+        
+        # Validate selfie type
+        try:
+            selfie_type = SelfieType(selfie_type_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid selfie type '{selfie_type_str}'. Must be one of: front, left, right."
+            )
+
+        # Validate file
+        if not is_allowed_file(image.filename):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file type for {selfie_type.value}. Only jpg, jpeg, png allowed."
+            )
+
+        ext = image.filename.rsplit(".", 1)[1].lower()
+        ts = int(time.time() * 1000)
+        key = f"selfies/{user.id}/{selfie_type.value}_{ts}.{ext}"
+
+        try:
+            # Delete old file from R2 if it exists
+            await _delete_old_selfie_from_r2(db, user.id, selfie_type)
+
+            await run_in_threadpool(
+                r2.upload_fileobj,
+                image.file,
+                R2_BUCKET_NAME,
+                key,
+                ExtraArgs={"ContentType": image.content_type}
+            )
+
+            image_url = f"{R2_PUBLIC_URL_PREFIX}/{key}"
+
+            # Upsert into DB
+            stmt = insert(UserSelfie).values(
+                user_id=user.id,
+                selfie_type=selfie_type,
+                image_url=image_url
+            )
+            stmt = stmt.on_conflict_do_update(
+                constraint="unique_user_selfie_type",
+                set_={"image_url": stmt.excluded.image_url}
+            )
+            await db.execute(stmt)
+            await db.commit()
+
+            return image_url
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload {selfie_type.value}: {str(e)}"
+            )
+

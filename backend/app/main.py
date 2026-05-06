@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.api.auth import auth
+from app.api.auth.profile import router as profile_router
 from app.api.event_routes import events_routes
 # from app.api.photo_routes import photo_routes
 from app.api.auth.oauth import router as oauth_router  
@@ -30,3 +31,4 @@ app.include_router(events_routes.router)
 app.include_router(oauth_router) 
 app.include_router(upload_router)
 app.include_router(selfie_router)
+app.include_router(profile_router)

@@ -1,5 +1,5 @@
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 import jwt
 from jwt import PyJWTError
@@ -22,7 +22,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     try:
         ph.verify(hashed, plain)
         return True
-    except VerifyMismatchError:
+    except (VerifyMismatchError, InvalidHashError):
         return False
 
 
