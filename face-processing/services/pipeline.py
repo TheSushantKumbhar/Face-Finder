@@ -1,3 +1,4 @@
+from typing import Optional, Tuple
 import uuid
 from services.embeddings import process_face
 from services.face_detection import extract_faces
@@ -33,20 +34,20 @@ def process_image(index, path, photo_id, event_id) -> bool:
     return True
 
 
-def process_selfie(index, path, selfie_id):
+def process_selfie(index, path, selfie_id) -> Tuple[Optional[str], bool]:
     try:
         faces = extract_faces(path)
     except Exception:
         print(f"ERROR no face found in photo id: {selfie_id}")
-        return
+        return None, False
 
     if len(faces) == 0:
         print(f"ERROR no face found in photo id: {selfie_id}")
-        return
+        return None, False
 
     if len(faces) > 1:
         print(f"ERROR multiple faces found in selfie: {selfie_id}")
-        return
+        return None, False
 
     face_id = str(uuid.uuid4())
     vector = process_face(
@@ -61,3 +62,5 @@ def process_selfie(index, path, selfie_id):
         vector=vector,
         namespace="selfies",
     )
+
+    return f"face-{face_id}", True

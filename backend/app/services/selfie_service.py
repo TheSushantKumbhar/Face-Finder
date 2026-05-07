@@ -165,12 +165,14 @@ class SelfieService:
             stmt = stmt.on_conflict_do_update(
                 constraint="unique_user_selfie_type",
                 set_={"image_url": stmt.excluded.image_url},
-            )
-            await db.execute(stmt)
+            ).returning(UserSelfie.id)
+
+            result = await db.execute(stmt)
+            selfie_id = result.scalar_one()
             await db.commit()
 
             payload = {
-                "selfieID": "",
+                "selfieID": str(selfie_id),
                 "r2URL": image_url,
             }
             producer = Producer()

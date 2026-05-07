@@ -1,4 +1,5 @@
 import json
+from services.callback import send_selfie_callback
 from services.vector_store import index
 from rabbitmq.connection import create_channel
 from config import SELFIE_QUEUE_NAME
@@ -28,7 +29,7 @@ def selfie_callback(ch, method, properties, body):
 
         print(f"INFO downloaded image to path: {img_path}")
 
-        process_selfie(
+        vector_id, success = process_selfie(
             index=index,
             path=img_path,
             selfie_id=selfie_id,
@@ -38,9 +39,32 @@ def selfie_callback(ch, method, properties, body):
         print(f"INFO indexed faces from \nselfie id: {selfie_id}\nurl: {img_url}")
         print("\n")
 
+        if vector_id == None:
+            send_selfie_callback(
+                selfie_id=selfie_id,
+                success=False,
+                vector_id="",
+                error_message="No vector id",
+            )
+            return
+
+        res = send_selfie_callback(
+            selfie_id=selfie_id,
+            success=success,
+            vector_id=vector_id,
+            error_message=None,
+        )
+        print("INFO Selfie callback response:", res)
+
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         print(f"ERROR processing the selfie: {e}")
+        send_selfie_callback(
+            selfie_id=selfie_id,
+            success=False,
+            vector_id="",
+            error_message=f"Something went wrong: {e}",
+        )
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
     finally:
         image_cleanup(path=img_path)
