@@ -175,6 +175,7 @@ class SelfieService:
                 "selfieID": str(selfie_id),
                 "r2URL": image_url,
             }
+
             producer = Producer()
             producer.publish(routing_key=ROUTING_KEY_SELFIE, msg=payload)
             print("INFO sent message to exchange")
