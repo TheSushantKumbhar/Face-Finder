@@ -197,6 +197,38 @@ export async function getEventsApi(): Promise<EventResponse[]> {
   return await response.json();
 }
 
+// ── Discover / Search Events API ──────────────────────────
+
+export interface DiscoverEventResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  organiser_name: string;
+  photo_count: number;
+}
+
+export async function discoverEventsApi(query?: string): Promise<DiscoverEventResponse[]> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const params = query ? `?q=${encodeURIComponent(query)}` : '';
+  const response = await fetch(`${BASE_URL}/events/discover${params}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to discover events');
+  }
+
+  return await response.json();
+}
+
 export async function createEventApi(data: EventCreateData): Promise<EventResponse> {
   const token = await getToken();
   if (!token) throw new Error('No token found');

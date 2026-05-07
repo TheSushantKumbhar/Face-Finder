@@ -179,7 +179,7 @@ async def complete_upload(
             event_id=UUID(event_id),
             uploaded_by=UUID(user_id),
             image_url=image_url,
-            status=PhotoStatus.completed,
+            status=PhotoStatus.pending,
         )
 
         db.add(photo)

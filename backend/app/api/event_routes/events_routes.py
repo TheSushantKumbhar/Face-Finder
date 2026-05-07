@@ -1,12 +1,15 @@
 # app/api/event.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query as QueryParam
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import selectinload
 import uuid
+from typing import Optional
 
 from app.models.event import Event
 from app.models.user import User
+from app.models.photo import Photo
 from app.schemas.event_schemas import EventCreate, EventResponse
 from dependencies.db_dependency import get_db
 from dependencies.role_dependency import require_organizer
@@ -14,6 +17,72 @@ from dependencies.get_user_dependency import get_current_user
 from app.services.r2_cleanup import delete_event_with_r2_cleanup
 
 router = APIRouter(prefix="/events", tags=["Events"])
+
+
+# ── Discover / Search all events ─────────────────────────
+@router.get("/discover")
+async def discover_events(
+    q: Optional[str] = QueryParam(None, description="Search query"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns all events (across all organisers) with organiser name
+    and photo count. Supports optional search by event name or description.
+    Results ordered by most recent first.
+    """
+    # Build subquery for photo count
+    photo_count_sq = (
+        select(
+            Photo.event_id,
+            func.count(Photo.id).label("photo_count"),
+        )
+        .group_by(Photo.event_id)
+        .subquery()
+    )
+
+    # Main query: join event → creator, left join photo counts
+    stmt = (
+        select(
+            Event.id,
+            Event.name,
+            Event.description,
+            Event.created_by,
+            Event.created_at,
+            User.username.label("organiser_name"),
+            func.coalesce(photo_count_sq.c.photo_count, 0).label("photo_count"),
+        )
+        .join(User, Event.created_by == User.id)
+        .outerjoin(photo_count_sq, Event.id == photo_count_sq.c.event_id)
+    )
+
+    # Apply search filter
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Event.name.ilike(pattern),
+                Event.description.ilike(pattern),
+            )
+        )
+
+    stmt = stmt.order_by(Event.created_at.desc())
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return [
+        {
+            "id": str(row.id),
+            "name": row.name,
+            "description": row.description,
+            "created_by": str(row.created_by),
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "organiser_name": row.organiser_name,
+            "photo_count": row.photo_count,
+        }
+        for row in rows
+    ]
 
 
 # create events 

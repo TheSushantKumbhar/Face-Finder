@@ -19,6 +19,7 @@ import {
   Dimensions,
   Platform,
   RefreshControl,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +49,74 @@ const C = {
   selectionOverlay: 'rgba(255,255,255,0.2)',
 };
 
+/* ── Status Badge Component ──────────────────────────────── */
+function StatusBadge({ status }: { status: string }) {
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (status === 'pending') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+      ).start();
+    }
+  }, [status]);
+
+  if (status === 'processed' || status === 'completed') {
+    return (
+      <View style={[statusStyles.badge, statusStyles.processed]}>
+        <Ionicons name="checkmark" size={9} color="#000" />
+      </View>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <View style={[statusStyles.badge, statusStyles.failed]}>
+        <Ionicons name="close" size={9} color="#FFF" />
+      </View>
+    );
+  }
+  // pending / processing
+  return (
+    <Animated.View style={[statusStyles.badge, statusStyles.pending, { opacity: pulseAnim }]}>
+      <View style={statusStyles.pendingDot} />
+    </Animated.View>
+  );
+}
+
+const statusStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  processed: {
+    backgroundColor: '#FFFFFF',
+  },
+  failed: {
+    backgroundColor: '#FF4444',
+  },
+  pending: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  pendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+});
+
 export default function EventGalleryScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -67,6 +136,7 @@ export default function EventGalleryScreen() {
   const [initialIndex, setInitialIndex] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchPhotos = useCallback(async () => {
     try {
@@ -88,6 +158,15 @@ export default function EventGalleryScreen() {
     }).start();
     fetchPhotos();
   }, [fetchPhotos]);
+
+  // Auto-poll every 8s while any photo is still pending
+  useEffect(() => {
+    const hasPending = photos.some(p => p.status === 'pending');
+    if (hasPending && !loading) {
+      pollRef.current = setInterval(() => fetchPhotos(), 8000);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [photos, loading, fetchPhotos]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -132,7 +211,7 @@ export default function EventGalleryScreen() {
 
   const renderPhoto = ({ item, index }: { item: PhotoResponse; index: number }) => {
     const isSelected = selectedIds.has(item.id);
-    const isProcessing = (item.status === 'pending' || item.status === 'processing') && !loadedPhotos.has(item.id);
+    const isPending = item.status === 'pending';
 
     return (
       <TouchableOpacity
@@ -147,12 +226,13 @@ export default function EventGalleryScreen() {
           onLoadEnd={() => setLoadedPhotos(prev => new Set(prev).add(item.id))}
         />
         
-        {/* Processing Blur Overlay */}
-        {isProcessing && (
-          <View style={styles.processingOverlay}>
-            <ActivityIndicator size="small" color={C.white} />
-          </View>
+        {/* Dim overlay for pending photos */}
+        {isPending && (
+          <View style={styles.processingOverlay} />
         )}
+
+        {/* Status Badge */}
+        <StatusBadge status={item.status} />
 
         {/* Selection Overlay */}
         {isSelectionMode && (
@@ -191,7 +271,11 @@ export default function EventGalleryScreen() {
             </TouchableOpacity>
             <View style={styles.headerTitleWrap}>
               <Text style={styles.headerTitle}>Uploaded Photos</Text>
-              <Text style={styles.headerSubtitle}>{photos.length} Photos • {eventName}</Text>
+              <Text style={styles.headerSubtitle}>
+                {photos.length} Photos • {photos.filter(p => p.status === 'pending').length > 0
+                  ? `${photos.filter(p => p.status === 'pending').length} processing`
+                  : eventName}
+              </Text>
             </View>
             <View style={styles.headerAction} />
           </>
@@ -386,9 +470,7 @@ const styles = StyleSheet.create({
   },
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   selectionCheckmarkWrap: {
     position: 'absolute',
