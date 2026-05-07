@@ -11,6 +11,7 @@ from app.schemas.event_schemas import EventCreate, EventResponse
 from dependencies.db_dependency import get_db
 from dependencies.role_dependency import require_organizer
 from dependencies.get_user_dependency import get_current_user
+from app.services.r2_cleanup import delete_event_with_r2_cleanup
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -93,12 +94,15 @@ async def delete_event(
     if event.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="not authorized")
     
-    await db.delete(event)
-    await db.commit()
-
-    return {
-        "message" : "Event deleted successfully"
-    }
+    try:
+        summary = await delete_event_with_r2_cleanup(db, event)
+        return summary
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete event: {str(e)}"
+        )
 
 # get event photos
 from app.models.photo import Photo

@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from app.models.user import User
 from app.models.user_selfie import UserSelfie, SelfieType
 from app.services.storage_service import r2, R2_BUCKET_NAME
+from app.services.r2_cleanup import extract_r2_key, delete_single_r2_object
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
 R2_PUBLIC_URL_PREFIX = "https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev"
@@ -18,12 +19,6 @@ def is_allowed_file(filename: str) -> bool:
         return False
     ext = filename.rsplit(".", 1)[1].lower()
     return ext in ALLOWED_EXTENSIONS
-
-def _extract_r2_key(image_url: str) -> str | None:
-    """Extract the R2 object key from a public URL."""
-    if not image_url or R2_PUBLIC_URL_PREFIX not in image_url:
-        return None
-    return image_url.replace(f"{R2_PUBLIC_URL_PREFIX}/", "")
 
 async def _delete_old_selfie_from_r2(
     db: AsyncSession,
@@ -39,14 +34,10 @@ async def _delete_old_selfie_from_r2(
     )
     existing = result.scalar_one_or_none()
     if existing and existing.image_url:
-        old_key = _extract_r2_key(existing.image_url)
+        old_key = extract_r2_key(existing.image_url)
         if old_key:
             try:
-                await run_in_threadpool(
-                    r2.delete_object,
-                    Bucket=R2_BUCKET_NAME,
-                    Key=old_key
-                )
+                await delete_single_r2_object(old_key)
             except Exception:
                 # Don't fail the upload if old file deletion fails
                 import traceback

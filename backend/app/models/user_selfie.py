@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey, UniqueConstraint
 from datetime import datetime
+from typing import Optional
 import uuid
 import enum
 
@@ -41,6 +42,10 @@ class UserSelfie(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow
+    )
+
+    vector_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default=None
     )
 
     user = relationship("User", back_populates="selfies")
