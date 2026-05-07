@@ -1,6 +1,7 @@
 import json
 from config import FACE_QUEUE_NAME
 from rabbitmq.connection import create_channel
+from services.callback import send_photo_callback
 from services.pipeline import process_image
 from utils.image_loader import download_image, image_cleanup
 from services.vector_store import index
@@ -29,20 +30,30 @@ def callback(ch, method, properties, body):
 
         print(f"INFO downloaded image to path: {img_path}")
 
-        process_image(
+        success = process_image(
             index=index,
             path=img_path,
             photo_id=photo_id,
             event_id=event_id,
         )
 
-        print("\n")
-        print(f"INFO indexed faces from \nphoto: {photo_id}\nurl: {img_url}")
-        print("\n")
+        res = send_photo_callback(
+            photo_id=photo_id,
+            event_id=event_id,
+            success=success,
+            error_message=None,
+        )
+        print("INFO Photo callback response:", res)
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         print(f"ERROR processing the image: {e}")
+        res = send_photo_callback(
+            photo_id=photo_id,
+            event_id=event_id,
+            success=False,
+            error_message=f"ERROR processing photo: {e}",
+        )
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
     finally:
         image_cleanup(path=img_path)

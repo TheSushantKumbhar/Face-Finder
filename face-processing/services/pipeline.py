@@ -4,12 +4,14 @@ from services.face_detection import extract_faces
 from services.vector_store import upsert_vector
 
 
-def process_image(index, path, photo_id, event_id):
+def process_image(index, path, photo_id, event_id) -> bool:
     try:
         faces = extract_faces(path)
     except Exception:
         print(f"ERROR no face found in {path}")
-        return
+        return False
+
+    face_counter = 0
 
     for face in faces:
         face_id = str(uuid.uuid4())
@@ -25,6 +27,10 @@ def process_image(index, path, photo_id, event_id):
             vector=vector,
             namespace=event_id,
         )
+        face_counter += 1
+
+    print(f"INFO: Indexed {face_counter} faces for photo id {photo_id}.")
+    return True
 
 
 def process_selfie(index, path, selfie_id):
