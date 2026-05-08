@@ -1,5 +1,6 @@
 import os
 import uuid
+import mimetypes
 import requests
 from config import IMAGES_FOLDER
 
@@ -13,13 +14,23 @@ def load_images():
 def download_image(url: str, folder: str = "temp") -> str:
     os.makedirs(folder, exist_ok=True)
 
-    filename = f"{uuid.uuid4()}.jpg"
-    path = os.path.join(folder, filename)
-
-    res = requests.get(url)
+    res = requests.get(url, timeout=10)
 
     if res.status_code != 200:
         raise Exception(f"Failed to download image: {res.status_code}")
+
+    # Get content type
+    content_type = res.headers.get("Content-Type", "").split(";")[0]
+
+    # Guess extension
+    ext = mimetypes.guess_extension(content_type)
+
+    # Fallback
+    if not ext:
+        ext = ".jpg"
+
+    filename = f"{uuid.uuid4()}{ext}"
+    path = os.path.join(folder, filename)
 
     with open(path, "wb") as f:
         f.write(res.content)
