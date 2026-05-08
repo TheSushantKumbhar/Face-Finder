@@ -25,6 +25,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { discoverEventsApi, DiscoverEventResponse } from '../../services/api';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { AppStackParamList } from '../../navigation/RootNavigator';
 import { mono } from './home/constants';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -187,6 +190,7 @@ function EventCard({
   event: DiscoverEventResponse;
   index: number;
 }) {
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -216,7 +220,7 @@ function EventCard({
         },
       ]}
     >
-      <Pressable onPressIn={onPressIn} onPressOut={onPressOut} style={styles.cardPressable}>
+      <Pressable onPressIn={onPressIn} onPressOut={onPressOut} onPress={() => navigation.navigate('EventDetails', { event })} style={styles.cardPressable}>
         {/* Banner area */}
         <View style={styles.cardBanner}>
           <LinearGradient

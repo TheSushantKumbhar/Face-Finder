@@ -14,6 +14,8 @@ import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 import EventUploadScreen from '../screens/main/EventUploadScreen';
 import EventGalleryScreen from '../screens/main/EventGalleryScreen';
+import EventDetailsScreen from '../screens/main/EventDetailsScreen';
+import RetrievedGalleryScreen from '../screens/main/RetrievedGalleryScreen';
 import SelfieUploadScreen from '../screens/main/SelfieUploadScreen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { checkSelfieStatusApi } from '../services/api';
@@ -22,6 +24,8 @@ export type AppStackParamList = {
   MainTabs: undefined;
   EventUpload: { eventId: string; eventName: string };
   EventGallery: { eventId: string; eventName: string };
+  EventDetails: { event: any };
+  RetrievedGallery: { photos: any[]; eventName: string };
   SelfieUpload: undefined;
 };
 
@@ -54,6 +58,16 @@ function AppStack() {
         name="EventGallery" 
         component={EventGalleryScreen} 
         options={{ presentation: 'card' }}
+      />
+      <Stack.Screen 
+        name="EventDetails" 
+        component={EventDetailsScreen} 
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
+      <Stack.Screen 
+        name="RetrievedGallery" 
+        component={RetrievedGalleryScreen} 
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
       />
       <Stack.Screen 
         name="SelfieUpload" 

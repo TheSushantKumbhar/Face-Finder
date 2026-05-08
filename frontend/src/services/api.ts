@@ -429,3 +429,45 @@ export async function checkSelfieStatusApi(): Promise<SelfieStatusResponse> {
 
   return response.json();
 }
+
+// ── Photo Retrieval API ───────────────────────────────────
+
+export interface RetrieveMatch {
+  photo_id: string;
+  score: number;
+}
+
+export interface RetrievePhotosResponse {
+  status: string;
+  event_id: string;
+  vector_id: string;
+  matches: RetrieveMatch[];
+}
+
+export async function retrievePhotosApi(eventId: string): Promise<RetrievePhotosResponse> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const response = await fetch(`${BASE_URL}/photo-retrieval/retrieve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ event_id: eventId }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let detail = 'Failed to retrieve photos';
+    try {
+      const parsed = JSON.parse(text);
+      detail = parsed.detail || detail;
+    } catch {
+      detail = text || detail;
+    }
+    throw new Error(detail);
+  }
+
+  return response.json();
+}
