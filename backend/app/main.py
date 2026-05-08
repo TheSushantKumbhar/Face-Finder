@@ -8,6 +8,7 @@ from app.api.callback_routes import callback_routes
 from app.api.auth.oauth import router as oauth_router
 from app.api.upload_routes.upload_routes import router as upload_router
 from app.api.selfie_routes.selfie_routes import router as selfie_router
+from app.api.photo_retrieval.photo_retrieval_routes import router as photo_retrieval_router
 
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,4 +33,5 @@ app.include_router(oauth_router)
 app.include_router(upload_router)
 app.include_router(selfie_router)
 app.include_router(profile_router)
+app.include_router(photo_retrieval_router)
 
