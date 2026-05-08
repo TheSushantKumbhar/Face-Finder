@@ -22,16 +22,67 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 
 
 # INIT UPLOAD
+# @router.post("/init")
+# async def init_upload(
+#     file_name: str, user_id: str, event_id: str, db: AsyncSession = Depends(get_db)
+# ):
+#     try:
+#         upload_id = str(uuid.uuid4())
+#         file_key = f"uploads/{user_id}/{upload_id}_{file_name}"
+
+#         response = r2.create_multipart_upload(
+#             Bucket=os.getenv("R2_BUCKET_NAME"), Key=file_key, ContentType="image/jpeg"
+#         )
+
+#         upload = Upload(
+#             upload_id=upload_id,
+#             user_id=user_id,
+#             event_id=uuid.UUID(event_id),
+#             file_key=file_key,
+#             r2_upload_id=response["UploadId"],
+#             status="in_progress",
+#             created_at=datetime.utcnow(),
+#         )
+
+#         db.add(upload)
+#         await db.commit()
+
+#         return {
+#             "upload_id": upload_id,
+#             "file_key": file_key,
+#             "r2_upload_id": response["UploadId"],
+#             "chunk_size": 5 * 1024 * 1024,
+#         }
+
+#     except Exception as e:
+#         await db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+from mimetypes import guess_type
+
 @router.post("/init")
 async def init_upload(
-    file_name: str, user_id: str, event_id: str, db: AsyncSession = Depends(get_db)
+    file_name: str,
+    user_id: str,
+    event_id: str,
+    db: AsyncSession = Depends(get_db),
 ):
     try:
         upload_id = str(uuid.uuid4())
         file_key = f"uploads/{user_id}/{upload_id}_{file_name}"
 
+        # Detect content type from filename
+        content_type, _ = guess_type(file_name)
+
+        # fallback
+        if not content_type:
+            content_type = "application/octet-stream"
+
         response = r2.create_multipart_upload(
-            Bucket=os.getenv("R2_BUCKET_NAME"), Key=file_key, ContentType="image/jpeg"
+            Bucket=os.getenv("R2_BUCKET_NAME"),
+            Key=file_key,
+            ContentType=content_type,
         )
 
         upload = Upload(
