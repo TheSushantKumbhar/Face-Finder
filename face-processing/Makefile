@@ -7,6 +7,11 @@ dev:
 server:
 	uv run fastapi dev --port 6969
 
+work:
+	uv run -m workers.face_worker &\
+	uv run -m workers.selfie_worker &\
+	wait
+
 face_worker:
 	uv run -m workers.face_worker
 

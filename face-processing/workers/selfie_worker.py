@@ -73,5 +73,5 @@ def selfie_callback(ch, method, properties, body):
 channel.basic_qos(prefetch_count=1)
 channel.basic_consume(queue=SELFIE_QUEUE_NAME, on_message_callback=selfie_callback)
 
-print("INFO Face worker runnning...")
+print("INFO Selfie worker runnning...")
 channel.start_consuming()

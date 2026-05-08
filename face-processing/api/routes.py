@@ -1,5 +1,5 @@
-from fastapi import APIRouter
-from api.models import QueryRequest
+from fastapi import APIRouter, status
+from api.models import QueryRequest, QueryResponse
 from services.vector_store import query_faces
 
 
@@ -16,7 +16,7 @@ async def health():
     return {"status": "ok"}
 
 
-@router.post("/query")
+@router.post("/query", response_model=QueryResponse)
 async def query_photos(req: QueryRequest):
     vector_id = req.vector_id
     event_id = req.event_id
@@ -25,10 +25,13 @@ async def query_photos(req: QueryRequest):
         input_face_id=vector_id,
         namespace=event_id,
         top_k=100,
+        threshold=0.51,
     )
 
     print(f"INFO found {len(results)} faces for event: {event_id} from pinecone")
-    print("-------------------------------------------------------------------")
     print(results)
 
-    return {"status": "done querying"}
+    return QueryResponse(
+        status="done",
+        matches=results,
+    )
