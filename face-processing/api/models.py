@@ -7,6 +7,14 @@ class QueryRequest(BaseModel):
     event_id: str
 
 
+class QueryMultipleRequest(BaseModel):
+    front_vector_id: str
+    left_vector_id: str
+    right_vector_id: str
+
+    event_id: str
+
+
 class QueryMatchResponse(BaseModel):
     photo_id: str
     score: float
