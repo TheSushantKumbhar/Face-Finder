@@ -168,12 +168,14 @@ export async function getMeApi(): Promise<UserProfile> {
 export interface EventCreateData {
   name: string;
   description?: string;
+  password?: string;
 }
 
 export interface EventResponse {
   id: string;
   name: string;
   description: string | null;
+  password: string | null;
   created_by: string;
   created_at: string;
 }
@@ -207,6 +209,7 @@ export interface DiscoverEventResponse {
   created_at: string;
   organiser_name: string;
   photo_count: number;
+  is_password_protected: boolean;
 }
 
 export async function discoverEventsApi(query?: string): Promise<DiscoverEventResponse[]> {

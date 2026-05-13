@@ -7,11 +7,13 @@ from datetime import datetime
 class EventCreate(BaseModel):
     name: str
     description: str | None = None
+    password: str | None = None
 
 class EventResponse(BaseModel):
     id: UUID
     name: str
     description: str | None
+    password: str | None = None
     created_by: UUID
     created_at: datetime
 

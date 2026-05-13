@@ -29,6 +29,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { createEventApi, getEventsApi, deleteEventApi, EventResponse } from '../../services/api';
+import PasswordProtectionSection, {
+  PasswordProtectionData,
+  validatePassword,
+} from '../../components/PasswordProtectionSection';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../navigation/MainNavigator';
@@ -100,6 +104,13 @@ function OrganizerView() {
   const [nameFocused, setNameFocused] = useState(false);
   const [descFocused, setDescFocused] = useState(false);
 
+  /* password protection state */
+  const [passwordData, setPasswordData] = useState<PasswordProtectionData>({
+    enabled: false,
+    password: '',
+    confirmPassword: '',
+  });
+
   /* events list state */
   const [events, setEvents] = useState<EventResponse[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -137,6 +148,17 @@ function OrganizerView() {
       Alert.alert('Missing Field', 'Please enter an event name.');
       return;
     }
+
+    // Validate password if protection is enabled
+    if (passwordData.enabled) {
+      const pwValidation = validatePassword(passwordData);
+      if (!pwValidation.isValid) {
+        const msg = pwValidation.passwordError || pwValidation.confirmError || 'Invalid password';
+        Alert.alert('Password Error', msg);
+        return;
+      }
+    }
+
     Animated.sequence([
       Animated.timing(btnScale, { toValue: 0.94, duration: 80, useNativeDriver: true }),
       Animated.timing(btnScale, { toValue: 1, duration: 80, useNativeDriver: true }),
@@ -147,10 +169,12 @@ function OrganizerView() {
       const newEvent = await createEventApi({
         name: eventName.trim(),
         description: description.trim() || undefined,
+        password: passwordData.enabled ? passwordData.password : undefined,
       });
       setEvents((prev) => [newEvent, ...prev]);
       setEventName('');
       setDescription('');
+      setPasswordData({ enabled: false, password: '', confirmPassword: '' });
       Alert.alert('🎉 Event Created', `"${newEvent.name}" is live!`);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to create event');
@@ -277,6 +301,12 @@ function OrganizerView() {
                 maxLength={250}
               />
             </View>
+
+            {/* Password Protection */}
+            <PasswordProtectionSection
+              data={passwordData}
+              onChange={setPasswordData}
+            />
 
             {/* Submit */}
             <Animated.View style={{ transform: [{ scale: btnScale }] }}>
@@ -415,6 +445,12 @@ function EventCard({ event, username, email, index, onPress, onDelete }: EventCa
         <View style={styles.dateWrap}>
           <View style={styles.cardEventDot} />
           <Text style={styles.cardDate}>{formatDate(event.created_at)}</Text>
+          {event.password ? (
+            <View style={styles.lockBadge}>
+              <Ionicons name="lock-closed" size={10} color={C.white} />
+              <Text style={styles.lockBadgeText}>Protected</Text>
+            </View>
+          ) : null}
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
           <Ionicons name="trash-outline" size={16} color="#FF453A" />
@@ -748,6 +784,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+  lockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 100,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  lockBadgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: C.gray1,
+    letterSpacing: 0.3,
   },
   cardName: {
     fontSize: 18,

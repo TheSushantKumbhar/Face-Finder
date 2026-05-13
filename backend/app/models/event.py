@@ -1,7 +1,7 @@
 # app/models/event.py
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -22,6 +22,8 @@ class Event(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
 
     description: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    password: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

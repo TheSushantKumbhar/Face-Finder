@@ -47,6 +47,7 @@ async def discover_events(
             Event.id,
             Event.name,
             Event.description,
+            Event.password,
             Event.created_by,
             Event.created_at,
             User.username.label("organiser_name"),
@@ -80,6 +81,7 @@ async def discover_events(
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "organiser_name": row.organiser_name,
             "photo_count": row.photo_count,
+            "is_password_protected": row.password is not None and len(row.password) > 0,
         }
         for row in rows
     ]
@@ -97,6 +99,7 @@ async def create_event(
     new_event = Event(
         name=event.name,
         description=event.description,
+        password=event.password,
         created_by=current_user.id,
         pinecone_namespace=namespace
     )
