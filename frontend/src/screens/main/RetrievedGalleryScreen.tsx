@@ -8,10 +8,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Pressable, Image,
+  View, Text, StyleSheet, Animated, Pressable,
   ScrollView, FlatList, Modal, Dimensions, Platform,
   Alert, ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,7 +70,7 @@ function MasonryCard({
         onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start()}
         style={cardStyles.press}
       >
-        <Image source={{ uri: photo.image_url }} style={cardStyles.img} resizeMode="cover" onLoadEnd={() => setLoaded(true)} />
+        <Image source={photo.image_url} style={cardStyles.img} contentFit="cover" cachePolicy="disk" transition={200} onLoadEnd={() => setLoaded(true)} />
         {!loaded && <View style={cardStyles.placeholder}><View style={cardStyles.shimmer} /></View>}
         {/* Score badge for high matches */}
         {photo.score >= 0.7 && (
@@ -162,7 +163,7 @@ function PhotoViewer({
         contentContainerStyle={vStyles.zoomContainer} centerContent
       >
         <Pressable onPress={toggleControls} style={vStyles.imgPress}>
-          <Image source={{ uri: item.image_url }} style={vStyles.img} resizeMode="contain" />
+          <Image source={item.image_url} style={vStyles.img} contentFit="contain" cachePolicy="disk" />
         </Pressable>
       </ScrollView>
     </View>

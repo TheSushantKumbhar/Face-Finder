@@ -4,10 +4,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Image,
   Animated,
-  ImageSourcePropType,
 } from 'react-native';
+import { Image, ImageSource } from 'expo-image';
 
 const { width: SW } = Dimensions.get('window');
 const AVATAR_SIZE = (SW - 100) / 4;
@@ -18,7 +17,7 @@ const bw = {
 };
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const AVATAR_IMAGES: Record<string, ImageSourcePropType> = {
+const AVATAR_IMAGES: Record<string, ImageSource> = {
   robot: require('../../assets/avatars/robot.png'),
   cat: require('../../assets/avatars/cat.png'),
   fox: require('../../assets/avatars/fox.png'),
@@ -112,7 +111,8 @@ function AnimatedOption({
         <Image
           source={AVATAR_IMAGES[id]}
           style={styles.avatarImg}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
         />
       </TouchableOpacity>
     </Animated.View>
@@ -146,7 +146,8 @@ export function renderAvatar(id: string, size: number): React.ReactNode {
       <Image
         source={AVATAR_IMAGES.robot}
         style={{ width: size * 0.85, height: size * 0.85, borderRadius: size * 0.425 }}
-        resizeMode="cover"
+        contentFit="cover"
+        cachePolicy="memory-disk"
       />
     );
   }
@@ -154,7 +155,8 @@ export function renderAvatar(id: string, size: number): React.ReactNode {
     <Image
       source={source}
       style={{ width: size * 0.85, height: size * 0.85, borderRadius: size * 0.425 }}
-      resizeMode="cover"
+      contentFit="cover"
+      cachePolicy="memory-disk"
     />
   );
 }

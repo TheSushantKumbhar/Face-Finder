@@ -12,7 +12,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Animated,
   Dimensions,
   Platform,
@@ -20,6 +19,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -284,7 +284,7 @@ export default function SelfieUploadScreen({ onComplete, onSkip }: Props) {
           <Image
             source={faceIllustration}
             style={styles.illustration}
-            resizeMode="contain"
+            contentFit="contain"
           />
         </Animated.View>
 
@@ -355,8 +355,10 @@ export default function SelfieUploadScreen({ onComplete, onSkip }: Props) {
                   {hasImage ? (
                     <View style={styles.previewContainer}>
                       <Image
-                        source={{ uri: images[slot.type]! }}
+                        source={images[slot.type]!}
                         style={styles.previewImage}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
                       />
                       <View style={styles.checkBadge}>
                         <Ionicons name="checkmark" size={12} color={bw.black} />

@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   TextInput,
   Animated,
   Dimensions,
@@ -15,6 +14,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -223,7 +223,7 @@ export default function ProfileScreen() {
               activeOpacity={0.8}
             >
               {displayPhoto ? (
-                <Image source={{ uri: displayPhoto }} style={styles.avatarImage} />
+                <Image source={displayPhoto} style={styles.avatarImage} contentFit="cover" cachePolicy="disk" />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   {renderAvatar(selectedAvatarId, 100)}
@@ -367,7 +367,7 @@ export default function ProfileScreen() {
                   ].map((item) => (
                     <View key={item.label} style={styles.selfieThumbWrap}>
                       {item.url ? (
-                        <Image source={{ uri: item.url, cache: 'reload' }} style={styles.selfieThumb} />
+                        <Image source={item.url} style={styles.selfieThumb} contentFit="cover" cachePolicy="none" />
                       ) : (
                         <View style={[styles.selfieThumb, styles.selfieThumbEmpty]}>
                           <Ionicons name="image-outline" size={22} color={bw.textMuted} />

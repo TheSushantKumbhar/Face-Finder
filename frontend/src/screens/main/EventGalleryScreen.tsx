@@ -12,7 +12,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Image,
   Animated,
   ActivityIndicator,
   Modal,
@@ -21,6 +20,7 @@ import {
   RefreshControl,
   Easing,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -221,8 +221,12 @@ export default function EventGalleryScreen() {
         style={[styles.thumbnailWrap, { marginRight: (index + 1) % COLUMN_COUNT === 0 ? 0 : SPACING }]}
       >
         <Image 
-          source={{ uri: item.image_url }} 
+          source={item.image_url} 
           style={styles.thumbnail}
+          contentFit="cover"
+          cachePolicy="disk"
+          transition={200}
+          recyclingKey={item.id}
           onLoadEnd={() => setLoadedPhotos(prev => new Set(prev).add(item.id))}
         />
         
@@ -335,9 +339,10 @@ function ViewerItem({ item }: { item: PhotoResponse }) {
   return (
     <View style={styles.viewerItem}>
       <Image 
-        source={{ uri: item.image_url }} 
+        source={item.image_url} 
         style={styles.viewerImage} 
-        resizeMode="contain" 
+        contentFit="contain" 
+        cachePolicy="disk"
         onLoadEnd={() => setLoading(false)}
       />
       {loading && (

@@ -21,10 +21,10 @@ import {
   Animated,
   Alert,
   ScrollView,
-  Image,
   FlatList,
   RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -225,7 +225,7 @@ function OrganizerView() {
             <Image
               source={require('../../../assets/welcome-illustration.png')}
               style={styles.heroImage}
-              resizeMode="contain"
+              contentFit="contain"
             />
           </View>
 

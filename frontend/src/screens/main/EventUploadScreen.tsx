@@ -14,12 +14,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Image,
   Animated,
   ActivityIndicator,
   Modal,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -68,7 +68,7 @@ const TaskCard = React.memo(({ item, onSelect, onRetry, onRemove }: TaskCardProp
       onPress={() => onSelect(item)}
     >
       {/* Thumbnail */}
-      <Image source={{ uri: item.uri }} style={styles.thumbnail} />
+      <Image source={item.uri} style={styles.thumbnail} contentFit="cover" cachePolicy="memory-disk" />
       
       {/* Info */}
       <View style={styles.taskInfo}>
@@ -285,7 +285,7 @@ export default function EventUploadScreen() {
 
             {selectedTask && (
               <View style={styles.modalBody}>
-                <Image source={{ uri: selectedTask.uri }} style={styles.modalImage} />
+                <Image source={selectedTask.uri} style={styles.modalImage} contentFit="cover" cachePolicy="memory-disk" />
                 <Text style={styles.modalFilename}>{selectedTask.fileName}</Text>
                 
                 <View style={styles.chunkInfo}>
