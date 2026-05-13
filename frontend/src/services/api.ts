@@ -232,6 +232,37 @@ export async function discoverEventsApi(query?: string): Promise<DiscoverEventRe
   return await response.json();
 }
 
+// ── Verify Event Password ─────────────────────────────────
+
+export interface VerifyPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function verifyEventPasswordApi(
+  eventId: string,
+  password: string
+): Promise<VerifyPasswordResponse> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const response = await fetch(`${BASE_URL}/events/${eventId}/verify-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ password }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Password verification failed');
+  }
+
+  return response.json();
+}
+
 export async function createEventApi(data: EventCreateData): Promise<EventResponse> {
   const token = await getToken();
   if (!token) throw new Error('No token found');

@@ -19,12 +19,15 @@ import {
   Dimensions,
   Platform,
   RefreshControl,
+  Modal,
+  KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { discoverEventsApi, DiscoverEventResponse } from '../../services/api';
+import { discoverEventsApi, DiscoverEventResponse, verifyEventPasswordApi } from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../navigation/RootNavigator';
@@ -182,6 +185,99 @@ function GeminiSearchBar({
   );
 }
 
+/* ── Password Modal ─────────────────────────────────────── */
+function PasswordModal({
+  visible,
+  eventName,
+  onCancel,
+  onSuccess,
+  eventId,
+}: {
+  visible: boolean;
+  eventName: string;
+  onCancel: () => void;
+  onSuccess: () => void;
+  eventId: string;
+}) {
+  const [pwd, setPwd] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const slideAnim = useRef(new Animated.Value(60)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setPwd('');
+      setError('');
+      Animated.parallel([
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, friction: 8, useNativeDriver: true }),
+      ]).start();
+    } else {
+      slideAnim.setValue(60);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  const handleVerify = async () => {
+    if (!pwd.trim()) { setError('Please enter a password.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      await verifyEventPasswordApi(eventId, pwd.trim());
+      setLoading(false);
+      onSuccess();
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Incorrect password.');
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onCancel}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={pwStyles.overlay}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onCancel} />
+        <Animated.View style={[pwStyles.sheet, { opacity: opacityAnim, transform: [{ translateY: slideAnim }] }]}>
+          {/* Lock icon */}
+          <View style={pwStyles.lockWrap}>
+            <Ionicons name="lock-closed" size={22} color="#FFF" />
+          </View>
+          <Text style={pwStyles.title}>Protected Event</Text>
+          <Text style={pwStyles.subtitle} numberOfLines={2}>{eventName}</Text>
+          <View style={pwStyles.divider} />
+          <Text style={pwStyles.label}>ENTER PASSWORD</Text>
+          <View style={[pwStyles.inputWrap, error ? pwStyles.inputError : null]}>
+            <Ionicons name="key-outline" size={16} color={error ? 'rgba(255,80,80,0.7)' : 'rgba(255,255,255,0.3)'} style={{ marginRight: 10 }} />
+            <TextInput
+              style={pwStyles.input}
+              placeholder="Event password"
+              placeholderTextColor="rgba(255,255,255,0.2)"
+              secureTextEntry
+              value={pwd}
+              onChangeText={t => { setPwd(t); setError(''); }}
+              onSubmitEditing={handleVerify}
+              returnKeyType="done"
+              autoFocus
+              selectionColor="rgba(255,255,255,0.4)"
+            />
+          </View>
+          {error ? <Text style={pwStyles.errorText}>{error}</Text> : null}
+          <View style={pwStyles.btnRow}>
+            <Pressable style={pwStyles.cancelBtn} onPress={onCancel}>
+              <Text style={pwStyles.cancelTxt}>Cancel</Text>
+            </Pressable>
+            <Pressable style={pwStyles.confirmBtn} onPress={handleVerify} disabled={loading}>
+              {loading
+                ? <ActivityIndicator size="small" color="#000" />
+                : <><Text style={pwStyles.confirmTxt}>Continue</Text><Ionicons name="arrow-forward" size={14} color="#000" style={{ marginLeft: 6 }} /></>}
+            </Pressable>
+          </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 /* ── Event Card ──────────────────────────────────────────── */
 function EventCard({
   event,
@@ -194,6 +290,7 @@ function EventCard({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const delay = index * 80;
@@ -206,7 +303,14 @@ function EventCard({
   const onPressIn = () => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start();
   const onPressOut = () => Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }).start();
 
-  // Generate a deterministic hue from event name for the subtle gradient accent
+  const handleViewEvent = () => {
+    if (event.is_password_protected) {
+      setShowModal(true);
+    } else {
+      navigation.navigate('EventDetails', { event });
+    }
+  };
+
   const hue = event.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
   const accentColor = `hsla(${hue}, 30%, 50%, 0.15)`;
 
@@ -214,13 +318,17 @@ function EventCard({
     <Animated.View
       style={[
         styles.cardOuter,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-        },
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] },
       ]}
     >
-      <Pressable onPressIn={onPressIn} onPressOut={onPressOut} onPress={() => navigation.navigate('EventDetails', { event })} style={styles.cardPressable}>
+      <PasswordModal
+        visible={showModal}
+        eventName={event.name}
+        eventId={event.id}
+        onCancel={() => setShowModal(false)}
+        onSuccess={() => { setShowModal(false); navigation.navigate('EventDetails', { event }); }}
+      />
+      <Pressable onPressIn={onPressIn} onPressOut={onPressOut} onPress={handleViewEvent} style={styles.cardPressable}>
         {/* Banner area */}
         <View style={styles.cardBanner}>
           <LinearGradient
@@ -229,22 +337,24 @@ function EventCard({
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          {/* Event initial large icon */}
           <View style={styles.bannerIconWrap}>
             <Text style={[styles.bannerInitial, { color: `hsla(${hue}, 40%, 70%, 0.6)` }]}>
               {event.name[0]?.toUpperCase() || 'E'}
             </Text>
           </View>
-          {/* Time badge */}
+          {/* Lock badge for protected events */}
+          {event.is_password_protected && (
+            <View style={styles.lockBadge}>
+              <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.7)" />
+            </View>
+          )}
           <View style={styles.timeBadge}>
             <Text style={styles.timeBadgeText}>{timeAgo(event.created_at)}</Text>
           </View>
-          {/* Photo count badge */}
           <View style={styles.photoBadge}>
             <Ionicons name="images-outline" size={11} color={mono.textSecondary} />
             <Text style={styles.photoBadgeText}>{event.photo_count}</Text>
           </View>
-          {/* Bottom gradient overlay */}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.85)', '#0E0E0E']}
             locations={[0, 0.6, 1]}
@@ -254,7 +364,15 @@ function EventCard({
 
         {/* Content */}
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={2}>{event.name}</Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={2}>{event.name}</Text>
+            {event.is_password_protected && (
+              <View style={styles.protectedBadge}>
+                <Ionicons name="lock-closed" size={9} color="rgba(255,255,255,0.5)" />
+                <Text style={styles.protectedBadgeText}>PRIVATE</Text>
+              </View>
+            )}
+          </View>
 
           <View style={styles.cardMeta}>
             <View style={styles.metaRow}>
@@ -277,6 +395,9 @@ function EventCard({
 
           <View style={styles.cardFooter}>
             <View style={styles.viewBtn}>
+              {event.is_password_protected
+                ? <Ionicons name="lock-closed" size={12} color="rgba(255,255,255,0.7)" />
+                : null}
               <Text style={styles.viewBtnText}>View Event</Text>
               <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
             </View>
@@ -758,4 +879,172 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 19,
   },
+
+  /* Lock badge on banner */
+  lockBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* Title row */
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 8,
+  },
+
+  /* PRIVATE badge next to title */
+  protectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginTop: 3,
+  },
+  protectedBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 1,
+  },
 });
+
+/* ── Password Modal Styles ───────────────────────────────── */
+const pwStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#111111',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+  },
+  lockWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 0.1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1.5,
+    marginBottom: 10,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 8,
+    marginBottom: 8,
+  },
+  inputError: {
+    borderColor: 'rgba(255,80,80,0.4)',
+    backgroundColor: 'rgba(255,50,50,0.04)',
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    padding: 0,
+    letterSpacing: -0.2,
+  },
+  errorText: {
+    fontSize: 12,
+    color: 'rgba(255,100,100,0.85)',
+    marginBottom: 12,
+    letterSpacing: 0.1,
+    paddingLeft: 2,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelTxt: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.2,
+  },
+  confirmBtn: {
+    flex: 2,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  confirmTxt: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#000000',
+    letterSpacing: 0.3,
+  },
+});
+

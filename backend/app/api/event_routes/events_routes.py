@@ -87,6 +87,39 @@ async def discover_events(
     ]
 
 
+# ── Verify event password ─────────────────────────────────
+from pydantic import BaseModel as PydanticBase
+
+class PasswordVerifyRequest(PydanticBase):
+    password: str
+
+@router.post("/{event_id}/verify-password")
+async def verify_event_password(
+    event_id: uuid.UUID,
+    body: PasswordVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Verify the password for a password-protected event.
+    Returns 200 on success, 401 on wrong password.
+    Non-protected events return 400 (no password set).
+    """
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not event.password:
+        raise HTTPException(status_code=400, detail="This event is not password protected")
+
+    if event.password != body.password:
+        raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+
+    return {"success": True, "message": "Password verified successfully"}
+
+
 # create events 
 @router.post("/createEvent", response_model=EventResponse)
 async def create_event(
