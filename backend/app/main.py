@@ -10,6 +10,14 @@ from app.api.upload_routes.upload_routes import router as upload_router
 from app.api.selfie_routes.selfie_routes import router as selfie_router
 from app.api.photo_retrieval.photo_retrieval_routes import router as photo_retrieval_router
 
+from app.api.admin.stats import router as admin_panel_router
+from app.api.admin.users import router as admin_users_router
+from app.api.admin.organizers import router as admin_organizers_router
+from app.api.admin.events import router as admin_events_router
+from app.api.admin.photo import router as admin_photo_router
+
+
+
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -34,4 +42,10 @@ app.include_router(upload_router)
 app.include_router(selfie_router)
 app.include_router(profile_router)
 app.include_router(photo_retrieval_router)
+
+app.include_router(admin_panel_router)
+app.include_router(admin_users_router)
+app.include_router(admin_organizers_router)
+app.include_router(admin_events_router)
+app.include_router(admin_photo_router)
 
