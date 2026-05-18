@@ -1,5 +1,12 @@
-from fastapi import APIRouter, status
-from api.models import QueryMultipleRequest, QueryRequest, QueryResponse
+from typing import List
+from fastapi import APIRouter
+from api.models import (
+    QueryMatchResponse,
+    QueryMultipleRequest,
+    QueryRequest,
+    QueryResponse,
+)
+from services.pipeline import query_photos
 from services.vector_store import query_faces
 
 
@@ -17,7 +24,7 @@ async def health():
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query_photos(req: QueryRequest):
+async def query_single(req: QueryRequest):
     vector_id = req.vector_id
     event_id = req.event_id
 
@@ -44,26 +51,12 @@ async def query_multiple(req: QueryMultipleRequest):
     right = req.right_vector_id
     event_id = req.event_id
 
-    seen_photo_ids = {}
-
-    for vector_id in [front, left, right]:
-        results = query_faces(
-            input_face_id=vector_id,
-            namespace=event_id,
-            top_k=300,
-            threshold=0.39,
-        )
-        for match in results:
-            if (
-                match.photo_id not in seen_photo_ids
-                or match.score > seen_photo_ids[match.photo_id].score
-            ):
-                seen_photo_ids[match.photo_id] = match
-
-    final_results = sorted(seen_photo_ids.values(), key=lambda x: x.score, reverse=True)
-
-    print(f"INFO found {len(final_results)} faces for event: {event_id} from pinecone")
-    print(final_results)
+    final_results: List[QueryMatchResponse] = query_photos(
+        front=front,
+        left=left,
+        right=right,
+        event_id=event_id,
+    )
 
     return QueryResponse(
         status="done",

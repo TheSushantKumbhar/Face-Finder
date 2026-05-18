@@ -10,6 +10,6 @@ def extract_faces(image_path):
         enforce_detection=True,
         normalization="ArcFace",
         align=True,
-        l2_normalize=True,
+        l2_normalize=False,
         expand_percentage=15,
     )

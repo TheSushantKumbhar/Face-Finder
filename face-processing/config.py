@@ -29,3 +29,15 @@ SELFIE_QUEUE_NAME = get_env("RABBITMQ_SELFIE_QUEUE")
 
 ROUTING_KEY_FACE = get_env("ROUTING_KEY_FACE")
 ROUTING_KEY_SELFIE = get_env("ROUTING_KEY_SELFIE")
+
+ANGLE_CONFIG = [
+    ("front", 0.9),
+    ("left", 0.4),
+    ("right", 0.4),
+]
+
+ANGLE_THRESHOLDS = {
+    "front": 0.34,
+    "left": 0.49,
+    "right": 0.54,
+}
