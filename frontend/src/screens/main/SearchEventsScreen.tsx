@@ -26,6 +26,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { discoverEventsApi, DiscoverEventResponse, verifyEventPasswordApi } from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
@@ -37,17 +38,25 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_W - 40;
 
 /* ── Helpers ─────────────────────────────────────────────── */
+/** Backend sends naive UTC datetimes without 'Z'. Append it so JS parses as UTC. */
+function parseUTC(iso: string): Date {
+  if (iso && !iso.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(iso)) {
+    return new Date(iso + 'Z');
+  }
+  return new Date(iso);
+}
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const d = parseUTC(iso);
+  return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const d = parseUTC(iso);
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff = Date.now() - parseUTC(iso).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -331,17 +340,27 @@ function EventCard({
       <Pressable onPressIn={onPressIn} onPressOut={onPressOut} onPress={handleViewEvent} style={styles.cardPressable}>
         {/* Banner area */}
         <View style={styles.cardBanner}>
-          <LinearGradient
-            colors={[accentColor, 'rgba(255,255,255,0.03)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.bannerIconWrap}>
-            <Text style={[styles.bannerInitial, { color: `hsla(${hue}, 40%, 70%, 0.6)` }]}>
-              {event.name[0]?.toUpperCase() || 'E'}
-            </Text>
-          </View>
+          {event.cover_image_url ? (
+            <Image
+              source={{ uri: event.cover_image_url }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+            />
+          ) : (
+            <>
+              <LinearGradient
+                colors={[accentColor, 'rgba(255,255,255,0.03)', 'transparent']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={styles.bannerIconWrap}>
+                <Text style={[styles.bannerInitial, { color: `hsla(${hue}, 40%, 70%, 0.6)` }]}>
+                  {event.name[0]?.toUpperCase() || 'E'}
+                </Text>
+              </View>
+            </>
+          )}
           {/* Lock badge for protected events */}
           {event.is_password_protected && (
             <View style={styles.lockBadge}>

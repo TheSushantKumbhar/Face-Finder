@@ -14,6 +14,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,13 +27,20 @@ import { mono } from './home/constants';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
+/** Backend sends naive UTC datetimes without 'Z'. Append it so JS parses as UTC. */
+function parseUTC(iso: string): Date {
+  if (iso && !iso.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(iso)) {
+    return new Date(iso + 'Z');
+  }
+  return new Date(iso);
+}
 function formatDateLong(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const d = parseUTC(iso);
+  return d.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const d = parseUTC(iso);
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 const LOADING_PHRASES = [
@@ -184,10 +192,20 @@ export default function EventDetailsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
         {/* Banner */}
         <Animated.View style={[s.banner, { opacity: bannerOpacity, transform: [{ scale: bannerScale }] }]}>
-          <LinearGradient colors={[`hsla(${hue},20%,35%,0.2)`, 'rgba(255,255,255,0.02)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-          <View style={s.bannerIcon}>
-            <Text style={[s.bannerLetter, { color: `hsla(${hue},25%,65%,0.35)` }]}>{event.name[0]?.toUpperCase() || 'E'}</Text>
-          </View>
+          {event.cover_image_url ? (
+            <Image
+              source={{ uri: event.cover_image_url }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+            />
+          ) : (
+            <>
+              <LinearGradient colors={[`hsla(${hue},20%,35%,0.2)`, 'rgba(255,255,255,0.02)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              <View style={s.bannerIcon}>
+                <Text style={[s.bannerLetter, { color: `hsla(${hue},25%,65%,0.35)` }]}>{event.name[0]?.toUpperCase() || 'E'}</Text>
+              </View>
+            </>
+          )}
           <View style={s.decorLine1} /><View style={s.decorLine2} />
           <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', mono.bg]} locations={[0, 0.6, 1]} style={s.bannerGrad} />
         </Animated.View>

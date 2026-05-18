@@ -27,6 +27,7 @@ import {
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import { createEventApi, getEventsApi, deleteEventApi, EventResponse } from '../../services/api';
 import PasswordProtectionSection, {
@@ -62,8 +63,15 @@ const C = {
 };
 
 /* ── Helpers ─────────────────────────────────────────────── */
+/** Backend sends naive UTC datetimes without 'Z'. Append it so JS parses as UTC. */
+function parseUTC(iso: string): Date {
+  if (iso && !iso.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(iso)) {
+    return new Date(iso + 'Z');
+  }
+  return new Date(iso);
+}
 function formatDate(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -100,6 +108,7 @@ function OrganizerView() {
   /* form state */
   const [eventName, setEventName] = useState('');
   const [description, setDescription] = useState('');
+  const [coverImageUri, setCoverImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
   const [descFocused, setDescFocused] = useState(false);
@@ -143,6 +152,18 @@ function OrganizerView() {
     setRefreshing(false);
   }, [fetchEvents]);
 
+  const pickCoverImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setCoverImageUri(result.assets[0].uri);
+    }
+  };
+
   const handleCreate = async () => {
     if (!eventName.trim()) {
       Alert.alert('Missing Field', 'Please enter an event name.');
@@ -170,10 +191,12 @@ function OrganizerView() {
         name: eventName.trim(),
         description: description.trim() || undefined,
         password: passwordData.enabled ? passwordData.password : undefined,
+        coverImageUri: coverImageUri || undefined,
       });
       setEvents((prev) => [newEvent, ...prev]);
       setEventName('');
       setDescription('');
+      setCoverImageUri(null);
       setPasswordData({ enabled: false, password: '', confirmPassword: '' });
       Alert.alert('🎉 Event Created', `"${newEvent.name}" is live!`);
     } catch (err: any) {
@@ -301,6 +324,48 @@ function OrganizerView() {
                 maxLength={250}
               />
             </View>
+
+            {/* Cover Image Picker */}
+            <TouchableOpacity
+              style={[styles.coverPickerWrap, coverImageUri && styles.coverPickerActive]}
+              onPress={pickCoverImage}
+              activeOpacity={0.7}
+            >
+              {coverImageUri ? (
+                <View style={styles.coverPreviewContainer}>
+                  <Image
+                    source={{ uri: coverImageUri }}
+                    style={styles.coverPreviewImage}
+                    contentFit="cover"
+                  />
+                  <View style={styles.coverPreviewOverlay}>
+                    <View style={styles.coverPreviewBadge}>
+                      <Ionicons name="checkmark-circle" size={14} color={C.white} />
+                      <Text style={styles.coverPreviewBadgeText}>Cover Selected</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.coverRemoveBtn}
+                      onPress={(e) => { e.stopPropagation(); setCoverImageUri(null); }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.8)" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.coverPlaceholder}>
+                  <View style={styles.coverIconWrap}>
+                    <Ionicons name="image-outline" size={22} color={C.gray2} />
+                  </View>
+                  <View style={styles.coverTextWrap}>
+                    <Text style={styles.coverTitle}>Add Cover Image</Text>
+                    <Text style={styles.coverSubtitle}>JPEG, PNG, WebP · Max 10 MB</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={C.gray3} />
+                </View>
+              )}
+            </TouchableOpacity>
 
             {/* Password Protection */}
             <PasswordProtectionSection
@@ -440,8 +505,20 @@ function EventCard({ event, username, email, index, onPress, onDelete }: EventCa
         },
       ]}
     >
+      {/* Cover image banner */}
+      {event.cover_image_url ? (
+        <View style={styles.cardCoverWrap}>
+          <Image
+            source={{ uri: event.cover_image_url }}
+            style={styles.cardCoverImage}
+            contentFit="cover"
+          />
+          <View style={styles.cardCoverGradient} />
+        </View>
+      ) : null}
+
       {/* Top row */}
-      <View style={styles.cardTopRow}>
+      <View style={[styles.cardTopRow, event.cover_image_url && { marginTop: 0 }]}>
         <View style={styles.dateWrap}>
           <View style={styles.cardEventDot} />
           <Text style={styles.cardDate}>{formatDate(event.created_at)}</Text>
@@ -749,6 +826,87 @@ const styles = StyleSheet.create({
     color: C.gray2,
   },
 
+  /* ── Cover Image Picker ── */
+  coverPickerWrap: {
+    backgroundColor: C.inputBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.inputBorder,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  coverPickerActive: {
+    borderColor: C.inputFocus,
+  },
+  coverPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 54,
+  },
+  coverIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: C.gray4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: C.gray3,
+  },
+  coverTextWrap: {
+    flex: 1,
+  },
+  coverTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.gray1,
+    letterSpacing: -0.2,
+  },
+  coverSubtitle: {
+    fontSize: 10,
+    color: C.gray3,
+    marginTop: 1,
+    letterSpacing: 0.3,
+  },
+  coverPreviewContainer: {
+    position: 'relative',
+  },
+  coverPreviewImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 13,
+  },
+  coverPreviewOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderBottomLeftRadius: 13,
+    borderBottomRightRadius: 13,
+  },
+  coverPreviewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  coverPreviewBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.white,
+    letterSpacing: 0.2,
+  },
+  coverRemoveBtn: {
+    padding: 2,
+  },
+
   /* ── Event Card ── */
   eventCard: {
     backgroundColor: C.card,
@@ -757,6 +915,28 @@ const styles = StyleSheet.create({
     borderColor: C.cardBorder,
     padding: 20,
     marginBottom: 14,
+    overflow: 'hidden',
+  },
+  cardCoverWrap: {
+    marginHorizontal: -20,
+    marginTop: -20,
+    marginBottom: 14,
+    height: 130,
+    position: 'relative',
+  },
+  cardCoverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardCoverGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: 'transparent',
+    // Simulated gradient using border
+    borderBottomWidth: 0,
   },
   cardTopRow: {
     flexDirection: 'row',

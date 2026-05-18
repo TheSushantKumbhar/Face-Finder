@@ -169,6 +169,7 @@ export interface EventCreateData {
   name: string;
   description?: string;
   password?: string;
+  coverImageUri?: string;
 }
 
 export interface EventResponse {
@@ -176,6 +177,7 @@ export interface EventResponse {
   name: string;
   description: string | null;
   password: string | null;
+  cover_image_url: string | null;
   created_by: string;
   created_at: string;
 }
@@ -210,6 +212,7 @@ export interface DiscoverEventResponse {
   organiser_name: string;
   photo_count: number;
   is_password_protected: boolean;
+  cover_image_url: string | null;
 }
 
 export async function discoverEventsApi(query?: string): Promise<DiscoverEventResponse[]> {
@@ -267,13 +270,31 @@ export async function createEventApi(data: EventCreateData): Promise<EventRespon
   const token = await getToken();
   if (!token) throw new Error('No token found');
 
+  const formData = new FormData();
+  formData.append('name', data.name);
+  if (data.description) {
+    formData.append('description', data.description);
+  }
+  if (data.password) {
+    formData.append('password', data.password);
+  }
+  if (data.coverImageUri) {
+    const fileName = data.coverImageUri.split('/').pop() || 'cover.jpg';
+    const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    formData.append('cover_image', {
+      uri: data.coverImageUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+  }
+
   const response = await fetch(`${BASE_URL}/events/createEvent`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(data),
+    body: formData,
   });
 
   if (!response.ok) {
@@ -373,6 +394,29 @@ export async function getEventPhotosApi(eventId: string): Promise<PhotoResponse[
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to fetch photos');
+  }
+
+  return response.json();
+}
+
+export async function reprocessPhotoApi(
+  eventId: string,
+  photoId: string
+): Promise<{ message: string; photo_id: string }> {
+  const token = await getToken();
+  if (!token) throw new Error('No token found');
+
+  const response = await fetch(
+    `${BASE_URL}/events/${eventId}/photos/${photoId}/reprocess`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to reprocess photo');
   }
 
   return response.json();

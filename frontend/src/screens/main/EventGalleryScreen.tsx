@@ -19,6 +19,7 @@ import {
   Platform,
   RefreshControl,
   Easing,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../navigation/RootNavigator';
-import { getEventPhotosApi, PhotoResponse } from '../../services/api';
+import { getEventPhotosApi, reprocessPhotoApi, PhotoResponse } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -125,6 +126,7 @@ export default function EventGalleryScreen() {
   const [photos, setPhotos] = useState<PhotoResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
 
   // Selection mode
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -173,6 +175,49 @@ export default function EventGalleryScreen() {
     fetchPhotos();
   };
 
+  /* ── Reprocess handler ──────────────────────────────────── */
+  const handleReprocess = useCallback((photoId: string) => {
+    Alert.alert(
+      'Reprocess Photo',
+      'This photo failed during face processing. Would you like to try again?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Retry',
+          onPress: async () => {
+            // Optimistically set status to pending
+            setPhotos(prev =>
+              prev.map(p =>
+                p.id === photoId ? { ...p, status: 'pending' } : p
+              )
+            );
+            setReprocessingIds(prev => new Set(prev).add(photoId));
+
+            try {
+              await reprocessPhotoApi(eventId, photoId);
+              // Refresh to get latest status
+              fetchPhotos();
+            } catch (err: any) {
+              // Revert on failure
+              setPhotos(prev =>
+                prev.map(p =>
+                  p.id === photoId ? { ...p, status: 'failed' } : p
+                )
+              );
+              Alert.alert('Error', err.message || 'Failed to reprocess photo');
+            } finally {
+              setReprocessingIds(prev => {
+                const next = new Set(prev);
+                next.delete(photoId);
+                return next;
+              });
+            }
+          },
+        },
+      ]
+    );
+  }, [eventId, fetchPhotos]);
+
   const handlePhotoPress = (index: number, photoId: string) => {
     if (isSelectionMode) {
       toggleSelection(photoId);
@@ -212,6 +257,8 @@ export default function EventGalleryScreen() {
   const renderPhoto = ({ item, index }: { item: PhotoResponse; index: number }) => {
     const isSelected = selectedIds.has(item.id);
     const isPending = item.status === 'pending';
+    const isFailed = item.status === 'failed';
+    const isReprocessing = reprocessingIds.has(item.id);
 
     return (
       <TouchableOpacity
@@ -233,6 +280,20 @@ export default function EventGalleryScreen() {
         {/* Dim overlay for pending photos */}
         {isPending && (
           <View style={styles.processingOverlay} />
+        )}
+
+        {/* ── Failed: light tint + retry icon ──────── */}
+        {isFailed && !isReprocessing && (
+          <View style={styles.failedOverlay}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => handleReprocess(item.id)}
+              style={styles.retryButton}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="refresh" size={18} color="#FFF" />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Status Badge */}
@@ -276,9 +337,12 @@ export default function EventGalleryScreen() {
             <View style={styles.headerTitleWrap}>
               <Text style={styles.headerTitle}>Uploaded Photos</Text>
               <Text style={styles.headerSubtitle}>
-                {photos.length} Photos • {photos.filter(p => p.status === 'pending').length > 0
-                  ? `${photos.filter(p => p.status === 'pending').length} processing`
-                  : eventName}
+                {photos.length} Photos
+                {photos.filter(p => p.status === 'pending').length > 0
+                  ? ` • ${photos.filter(p => p.status === 'pending').length} processing`
+                  : photos.filter(p => p.status === 'failed').length > 0
+                    ? ` • ${photos.filter(p => p.status === 'failed').length} failed`
+                    : ` • ${eventName}`}
               </Text>
             </View>
             <View style={styles.headerAction} />
@@ -318,6 +382,7 @@ export default function EventGalleryScreen() {
         photos={photos}
         initialIndex={initialIndex}
         onClose={() => setViewerVisible(false)}
+        onReprocess={handleReprocess}
       />
     </SafeAreaView>
   );
@@ -332,6 +397,7 @@ interface ViewerProps {
   photos: PhotoResponse[];
   initialIndex: number;
   onClose: () => void;
+  onReprocess: (photoId: string) => void;
 }
 
 function ViewerItem({ item }: { item: PhotoResponse }) {
@@ -354,7 +420,7 @@ function ViewerItem({ item }: { item: PhotoResponse }) {
   );
 }
 
-function PhotoViewerModal({ visible, photos, initialIndex, onClose }: ViewerProps) {
+function PhotoViewerModal({ visible, photos, initialIndex, onClose, onReprocess }: ViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   
   // Update index if it changes externally
@@ -369,6 +435,9 @@ function PhotoViewerModal({ visible, photos, initialIndex, onClose }: ViewerProp
       setCurrentIndex(viewableItems[0].index);
     }
   }).current;
+
+  const currentPhoto = photos[currentIndex];
+  const isCurrentFailed = currentPhoto?.status === 'failed';
 
   return (
     <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
@@ -398,6 +467,26 @@ function PhotoViewerModal({ visible, photos, initialIndex, onClose }: ViewerProp
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         />
+
+        {/* ── Failed photo: bottom reprocess banner ──── */}
+        {isCurrentFailed && (
+          <View style={styles.viewerFailedBanner}>
+            <View style={styles.viewerFailedInfo}>
+              <Ionicons name="warning" size={18} color="#FF4444" />
+              <Text style={styles.viewerFailedText}>Processing failed</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.viewerRetryBtn}
+              onPress={() => {
+                onReprocess(currentPhoto.id);
+              }}
+            >
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.viewerRetryBtnText}>Reprocess</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -501,7 +590,24 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: C.selectionOverlay,
   },
-  
+
+  /* Failed photo overlay */
+  failedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  retryButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,68,68,0.9)',
+  },
+
   /* Viewer */
   viewerRoot: {
     flex: 1,
@@ -548,5 +654,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
+  },
+
+  /* Viewer failed banner */
+  viewerFailedBanner: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    backgroundColor: 'rgba(20,20,20,0.92)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,68,68,0.3)',
+  },
+  viewerFailedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewerFailedText: {
+    color: '#FF6666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  viewerRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  viewerRetryBtnText: {
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
