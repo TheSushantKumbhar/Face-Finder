@@ -1,10 +1,12 @@
 # app/api/event.py
 
-from fastapi import APIRouter, Depends, HTTPException, Query as QueryParam
+from fastapi import APIRouter, Depends, HTTPException, Query as QueryParam, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
+from fastapi.concurrency import run_in_threadpool
 import uuid
+import io
 from typing import Optional
 
 from app.models.event import Event
@@ -15,6 +17,13 @@ from dependencies.db_dependency import get_db
 from dependencies.role_dependency import require_organizer
 from dependencies.get_user_dependency import get_current_user
 from app.services.r2_cleanup import delete_event_with_r2_cleanup
+from app.services.storage_service import r2, R2_BUCKET_NAME
+
+R2_PUBLIC_URL_PREFIX = "https://pub-450f47b52ec8475784bebb5ca720c2ab.r2.dev"
+
+# Allowed image content types for cover image validation
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_COVER_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -48,6 +57,7 @@ async def discover_events(
             Event.name,
             Event.description,
             Event.password,
+            Event.cover_image_url,
             Event.created_by,
             Event.created_at,
             User.username.label("organiser_name"),
@@ -82,6 +92,7 @@ async def discover_events(
             "organiser_name": row.organiser_name,
             "photo_count": row.photo_count,
             "is_password_protected": row.password is not None and len(row.password) > 0,
+            "cover_image_url": row.cover_image_url,
         }
         for row in rows
     ]
@@ -123,16 +134,63 @@ async def verify_event_password(
 # create events 
 @router.post("/createEvent", response_model=EventResponse)
 async def create_event(
-    event: EventCreate,
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    cover_image: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_organizer) 
 ):
     namespace = f"event_{uuid.uuid4()}"
 
+    # Handle cover image upload to R2
+    cover_image_url = None
+    if cover_image is not None:
+        content_type = cover_image.content_type or ""
+        if content_type not in ALLOWED_IMAGE_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid image type '{content_type}'. Allowed: JPEG, PNG, WebP, GIF"
+            )
+
+        file_bytes = await cover_image.read()
+
+        if len(file_bytes) > MAX_COVER_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail="Cover image must be under 10 MB"
+            )
+
+        if len(file_bytes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cover image file is empty"
+            )
+
+        ext = cover_image.filename.rsplit(".", 1)[-1].lower() if cover_image.filename else "jpg"
+        event_uuid = uuid.uuid4()
+        key = f"event-covers/{event_uuid}/cover.{ext}"
+
+        try:
+            await run_in_threadpool(
+                r2.upload_fileobj,
+                io.BytesIO(file_bytes),
+                R2_BUCKET_NAME,
+                key,
+                ExtraArgs={"ContentType": content_type},
+            )
+            cover_image_url = f"{R2_PUBLIC_URL_PREFIX}/{key}"
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to upload cover image: {str(e)}"
+            )
+
     new_event = Event(
-        name=event.name,
-        description=event.description,
-        password=event.password,
+        name=name,
+        description=description,
+        password=password,
+        cover_image_url=cover_image_url,
         created_by=current_user.id,
         pinecone_namespace=namespace
     )
@@ -232,3 +290,53 @@ async def get_event_photos(
         }
         for photo in photos
     ]
+
+
+# ── Reprocess a failed photo ─────────────────────────────
+from app.config import ROUTING_KEY_FACE
+from app.services.producer import Producer
+
+@router.post("/{event_id}/photos/{photo_id}/reprocess")
+async def reprocess_photo(
+    event_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Re-trigger face processing for a photo that previously failed.
+    Resets its status back to 'pending' and re-publishes the message
+    to the face-processing queue.
+    """
+    from app.models.photo import PhotoStatus
+
+    result = await db.execute(
+        select(Photo).where(Photo.id == photo_id, Photo.event_id == event_id)
+    )
+    photo = result.scalar_one_or_none()
+
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    if photo.status != PhotoStatus.failed:
+        raise HTTPException(
+            status_code=400,
+            detail="Only failed photos can be reprocessed",
+        )
+
+    # Reset status
+    photo.status = PhotoStatus.pending
+    await db.commit()
+
+    # Re-publish to face-processing queue
+    face_processing_msg = {
+        "eventID": str(event_id),
+        "photoID": str(photo_id),
+        "r2URL": photo.image_url,
+    }
+
+    producer = Producer()
+    producer.publish(routing_key=ROUTING_KEY_FACE, msg=face_processing_msg)
+    producer.close()
+
+    return {"message": "Photo queued for reprocessing", "photo_id": str(photo_id)}

@@ -25,6 +25,8 @@ class Event(Base):
 
     password: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    cover_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),

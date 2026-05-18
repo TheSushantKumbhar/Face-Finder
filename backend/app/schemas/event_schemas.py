@@ -8,12 +8,14 @@ class EventCreate(BaseModel):
     name: str
     description: str | None = None
     password: str | None = None
+    cover_image_url: str | None = None
 
 class EventResponse(BaseModel):
     id: UUID
     name: str
     description: str | None
     password: str | None = None
+    cover_image_url: str | None = None
     created_by: UUID
     created_at: datetime
 
