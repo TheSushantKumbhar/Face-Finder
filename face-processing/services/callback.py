@@ -1,8 +1,9 @@
 import requests
 
 
-BASE_URL = "http://localhost:8000/callback"
+# BASE_URL = "http://localhost:8000/callback"
 
+BASE_URL = "https://face-finder-9zkc.onrender.com/callback"
 
 def send_selfie_callback(
     selfie_id: str,
