@@ -1,7 +1,7 @@
 /**
  * Face Finder — Main Navigator (Bottom Tabs)
  * ───────────────────────────────────────────
- * Premium dark bottom tab bar with rich gold accent for the active state.
+ * Premium dark bottom tab bar with cyan accent for the active state.
  * Features a subtle glow pill behind active icons and clean typography.
  */
 
@@ -25,7 +25,7 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-/* ── Tiny gold dot beneath active label ─────────────────── */
+/* ── Tiny cyan dot beneath active label ─────────────────── */
 const ActiveDot = () => <View style={styles.activeDot} />;
 
 export default function MainNavigator() {
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: palette.dark.surface,        // #141414 — near-black
     borderTopWidth: 1,
-    borderTopColor: 'rgba(201, 168, 76, 0.08)',   // whisper of gold border
+    borderTopColor: 'rgba(14, 165, 217, 0.08)',   // whisper of cyan border
     height: TAB_BAR_HEIGHT,
     paddingBottom: Platform.OS === 'ios' ? 28 : 18,
     paddingTop: 8,
@@ -151,12 +151,12 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 10,
   },
-  /* Active: subtle golden pill glow */
+  /* Active: subtle cyan pill glow */
   activeIconWrap: {
-    backgroundColor: palette.goldMuted,             // rgba gold tint
+    backgroundColor: palette.goldMuted,             // rgba cyan tint
     borderWidth: 1,
-    borderColor: 'rgba(201, 168, 76, 0.18)',        // fine gold stroke
-    // Subtle golden shadow
+    borderColor: 'rgba(14, 165, 217, 0.18)',        // fine cyan stroke
+    // Subtle cyan shadow
     ...Platform.select({
       ios: {
         shadowColor: palette.gold,

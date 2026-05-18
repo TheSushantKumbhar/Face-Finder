@@ -37,6 +37,40 @@ import {
   getMeApi,
 } from '../services/api';
 
+/* ── Concurrency limits ────────────────────────────────────── */
+const MAX_PHOTO_CONCURRENCY = 3;   // max photos uploading in parallel
+const MAX_CHUNK_CONCURRENCY = 3;   // max chunks uploading in parallel per photo
+
+/**
+ * Lightweight promise-based semaphore for concurrency control.
+ * Never busy-waits — ideal for mobile devices.
+ */
+class Semaphore {
+  private running = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private readonly max: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.running < this.max) {
+      this.running++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    this.running--;
+    if (this.queue.length > 0) {
+      this.running++;
+      const next = this.queue.shift()!;
+      next();
+    }
+  }
+}
+
 /* ── Types ──────────────────────────────────────────────────── */
 
 export type UploadStatus = 'pending' | 'uploading' | 'paused' | 'completed' | 'failed';
@@ -239,94 +273,107 @@ export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const totalParts = Math.ceil(fileSize / chunk_size);
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, totalParts } : t)));
 
-      // 3. Upload each part sequentially
-      for (let i = 0; i < totalParts; i++) {
-        const partNumber = i + 1;
-        const offset = i * chunk_size;
-        const length = Math.min(chunk_size, fileSize - offset);
+      // 3. Upload chunks in parallel (max MAX_CHUNK_CONCURRENCY at a time)
+      const chunkSemaphore = new Semaphore(MAX_CHUNK_CONCURRENCY);
+      let completedChunks = 0;
 
-        // 3a. Get presigned URL
-        let presignedUrl: string;
+      const uploadChunk = async (partIndex: number) => {
+        await chunkSemaphore.acquire();
         try {
-          const res = await getPresignedUrlApi(upload_id, partNumber);
-          presignedUrl = res.url;
-        } catch (e: any) {
-          throw new Error(`Presigned URL Failed (part ${partNumber}): ${e.message}`);
-        }
+          const partNumber = partIndex + 1;
+          const offset = partIndex * chunk_size;
+          const length = Math.min(chunk_size, fileSize - offset);
 
-        // 3b. Upload chunk
-        if (totalParts === 1) {
-          const uploadResult = await uploadAsync(presignedUrl, fileUri, {
-            httpMethod: 'PUT',
-            uploadType: FileSystemUploadType.BINARY_CONTENT,
-          });
-
-          if (uploadResult.status < 200 || uploadResult.status >= 300) {
-            throw new Error(`Upload failed with status ${uploadResult.status}`);
-          }
-
-          const etag =
-            uploadResult.headers['etag'] ||
-            uploadResult.headers['ETag'] ||
-            uploadResult.headers['Etag'];
-          if (!etag) throw new Error('No ETag received from upload');
-
+          // 3a. Get presigned URL
+          let presignedUrl: string;
           try {
-            await completePartApi(upload_id, partNumber, etag);
+            const res = await getPresignedUrlApi(upload_id, partNumber);
+            presignedUrl = res.url;
           } catch (e: any) {
-            throw new Error(`Complete Part Failed: ${e.message}`);
-          }
-        } else {
-          const base64Chunk = await readAsStringAsync(fileUri, {
-            encoding: EncodingType.Base64,
-            position: offset,
-            length: length,
-          });
-
-          const tempChunkUri = (cacheDirectory || '') + `chunk_${upload_id}_${partNumber}.tmp`;
-          await writeAsStringAsync(tempChunkUri, base64Chunk, {
-            encoding: EncodingType.Base64,
-          });
-
-          const uploadResult = await uploadAsync(presignedUrl, tempChunkUri, {
-            httpMethod: 'PUT',
-            uploadType: FileSystemUploadType.BINARY_CONTENT,
-          });
-
-          await deleteAsync(tempChunkUri, { idempotent: true });
-
-          if (uploadResult.status < 200 || uploadResult.status >= 300) {
-            throw new Error(`Chunk ${partNumber} failed with status ${uploadResult.status}`);
+            throw new Error(`Presigned URL Failed (part ${partNumber}): ${e.message}`);
           }
 
-          const etag =
-            uploadResult.headers['etag'] ||
-            uploadResult.headers['ETag'] ||
-            uploadResult.headers['Etag'];
-          if (!etag) throw new Error(`No ETag received for chunk ${partNumber}`);
+          // 3b. Upload chunk
+          if (totalParts === 1) {
+            const uploadResult = await uploadAsync(presignedUrl, fileUri, {
+              httpMethod: 'PUT',
+              uploadType: FileSystemUploadType.BINARY_CONTENT,
+            });
 
-          try {
-            await completePartApi(upload_id, partNumber, etag);
-          } catch (e: any) {
-            throw new Error(`Complete Part Failed (part ${partNumber}): ${e.message}`);
-          }
-        }
-
-        // Update progress
-        setTasks((prev) =>
-          prev.map((t) => {
-            if (t.id === taskId) {
-              const newUploadedParts = i + 1;
-              return {
-                ...t,
-                uploadedParts: newUploadedParts,
-                progress: Math.floor((newUploadedParts / totalParts) * 100),
-              };
+            if (uploadResult.status < 200 || uploadResult.status >= 300) {
+              throw new Error(`Upload failed with status ${uploadResult.status}`);
             }
-            return t;
-          })
-        );
-      }
+
+            const etag =
+              uploadResult.headers['etag'] ||
+              uploadResult.headers['ETag'] ||
+              uploadResult.headers['Etag'];
+            if (!etag) throw new Error('No ETag received from upload');
+
+            try {
+              await completePartApi(upload_id, partNumber, etag);
+            } catch (e: any) {
+              throw new Error(`Complete Part Failed: ${e.message}`);
+            }
+          } else {
+            const base64Chunk = await readAsStringAsync(fileUri, {
+              encoding: EncodingType.Base64,
+              position: offset,
+              length: length,
+            });
+
+            const tempChunkUri = (cacheDirectory || '') + `chunk_${upload_id}_${partNumber}.tmp`;
+            await writeAsStringAsync(tempChunkUri, base64Chunk, {
+              encoding: EncodingType.Base64,
+            });
+
+            const uploadResult = await uploadAsync(presignedUrl, tempChunkUri, {
+              httpMethod: 'PUT',
+              uploadType: FileSystemUploadType.BINARY_CONTENT,
+            });
+
+            await deleteAsync(tempChunkUri, { idempotent: true });
+
+            if (uploadResult.status < 200 || uploadResult.status >= 300) {
+              throw new Error(`Chunk ${partNumber} failed with status ${uploadResult.status}`);
+            }
+
+            const etag =
+              uploadResult.headers['etag'] ||
+              uploadResult.headers['ETag'] ||
+              uploadResult.headers['Etag'];
+            if (!etag) throw new Error(`No ETag received for chunk ${partNumber}`);
+
+            try {
+              await completePartApi(upload_id, partNumber, etag);
+            } catch (e: any) {
+              throw new Error(`Complete Part Failed (part ${partNumber}): ${e.message}`);
+            }
+          }
+
+          // Update progress (safe: JS is single-threaded between awaits)
+          completedChunks++;
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id === taskId) {
+                return {
+                  ...t,
+                  uploadedParts: completedChunks,
+                  progress: Math.floor((completedChunks / totalParts) * 100),
+                };
+              }
+              return t;
+            })
+          );
+        } finally {
+          chunkSemaphore.release();
+        }
+      };
+
+      // Launch all chunks — semaphore gates concurrency to MAX_CHUNK_CONCURRENCY
+      await Promise.all(
+        Array.from({ length: totalParts }, (_, i) => uploadChunk(i))
+      );
 
       // 4. Complete Upload
       try {
@@ -377,7 +424,7 @@ export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    const workers = Array.from({ length: Math.min(pendingTaskIds.length, 1) }).map(worker);
+    const workers = Array.from({ length: Math.min(pendingTaskIds.length, MAX_PHOTO_CONCURRENCY) }).map(worker);
     await Promise.all(workers);
 
     setUploadingAllEvents((prev) => {

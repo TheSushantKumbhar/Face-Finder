@@ -49,11 +49,11 @@ export const palette = {
   warning: '#F0AD4E',
   info: '#5BC0DE',
 
-  // ── Gold accent (navbar / indicators) ──────────────────
-  gold: '#C9A84C',              // Rich gold — active icons & labels
-  goldLight: '#E2C878',         // Lighter gold — glow / highlights
-  goldMuted: 'rgba(201,168,76,0.12)', // Subtle gold tint — icon bg pill
-  goldGlow: 'rgba(201,168,76,0.25)', // Glow ring for active tab
+  // ── Cyan accent (navbar / indicators) ──────────────────
+  gold: '#0EA5D9',              // Cyan — active icons & labels
+  goldLight: '#38BDF8',         // Lighter cyan — glow / highlights
+  goldMuted: 'rgba(14,165,217,0.12)', // Subtle cyan tint — icon bg pill
+  goldGlow: 'rgba(14,165,217,0.25)', // Glow ring for active tab
 
   // ── Dark mode surfaces ────────────────────────────────
   dark: {
