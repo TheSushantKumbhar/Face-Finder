@@ -7,7 +7,7 @@ def normalize_embedding(embedding):
 
 
 def process_face(face, face_id, photo_id, event_id):
-    embedding = normalize_embedding(face["embedding"])
+    embedding = face["embedding"]
     return {
         "id": f"face-{face_id}",
         "values": embedding,

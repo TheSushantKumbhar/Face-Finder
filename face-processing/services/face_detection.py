@@ -1,5 +1,4 @@
 from deepface import DeepFace
-from deepface.modules.modeling import ArcFace
 from config import MODEL_NAME, DETECTOR
 
 
@@ -11,4 +10,6 @@ def extract_faces(image_path):
         enforce_detection=True,
         normalization="ArcFace",
         align=True,
+        l2_normalize=True,
+        expand_percentage=15,
     )

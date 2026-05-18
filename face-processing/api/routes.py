@@ -51,7 +51,7 @@ async def query_multiple(req: QueryMultipleRequest):
             input_face_id=vector_id,
             namespace=event_id,
             top_k=300,
-            threshold=0.35,
+            threshold=0.39,
         )
         for match in results:
             if (
