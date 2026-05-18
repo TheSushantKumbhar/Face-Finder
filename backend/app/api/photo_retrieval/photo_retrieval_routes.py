@@ -17,6 +17,7 @@ router = APIRouter(prefix="/photo-retrieval", tags=["Photo Retrieval"])
 
 # Face-processing service (runs on port 6969 locally)
 FACE_PROCESSING_BASE_URL = "https://face-finder-0cat.onrender.com"
+# FACE_PROCESSING_BASE_URL = "http://localhost:6969"
 
 
 class RetrieveRequest(BaseModel):
